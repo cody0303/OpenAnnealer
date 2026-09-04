@@ -671,10 +671,10 @@
                         </form>
                     </section>
 
-                    <section class="settings-page" id="settings-servo-gate" name="Servo Gate" style="display: none;">
+                    <section class="settings-page" id="settings-servo-gate" name="Case Holder Servo" style="display: none;">
                         <form id="servoGateConfigForm" action="/rest/servo_gate_config" class="grid grid-cols-1 gap-3">
                             <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Servo Gate Enable</span>
+                                <span class="label-text">Servo Enable</span>
                                 <select class="select select-bordered" name="c0">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
@@ -682,33 +682,53 @@
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Shutter 0 Close Duty Cycle</span>
+                                <span class="label-text">Close (Drop) Duty Cycle</span>
                                 <input type="number" class="input input-bordered" name="c1" step="0.001">
                             </div>
-                            
+
                             <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Shutter 0 Open Duty Cycle</span>
+                                <span class="label-text">Open (Hold) Duty Cycle</span>
                                 <input type="number" class="input input-bordered" name="c2" step="0.001">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Shutter 1 Close Duty Cycle</span>
+                                <span class="label-text">Close (Drop) Speed (%/s)</span>
                                 <input type="number" class="input input-bordered" name="c3" step="0.001">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Shutter 1 Open Duty Cycle</span>
+                                <span class="label-text">Open (Hold) Speed (%/s)</span>
                                 <input type="number" class="input input-bordered" name="c4" step="0.001">
                             </div>
 
-                            <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Shutter Close Speed (%/s)</span>
-                                <input type="number" class="input input-bordered" name="c5" step="0.001">
+                            <button class="btn btn-neutral settings-apply-btn">Apply</button>
+                        </form>
+                    </section>
+
+                    <!-- Induction Heater Settings -->
+                    <section class="settings-page" id="settings-induction-heater" name="Induction Heater" style="display: none;">
+                        <form id="inductionHeaterConfigForm" action="/rest/induction_heater_config" class="grid grid-cols-1 gap-3">
+                            <div role="alert" class="alert alert-warning">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"></path></svg>
+                                <span>Changing the trigger pin immediately disables the coil for safety. Verify the new wiring before testing again.</span>
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Shutter Open Speed (%/s)</span>
-                                <input type="number" class="input input-bordered" name="c6" step="0.001">
+                                <span class="label-text">Trigger GPIO Pin</span>
+                                <input type="number" class="input input-bordered" name="i2" step="1" min="0" max="28">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Trigger Active High</span>
+                                <select class="select select-bordered" name="i0">
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Max Dwell / Safety Cutoff (ms)</span>
+                                <input type="number" class="input input-bordered" name="i1" step="1" min="1">
                             </div>
 
                             <button class="btn btn-neutral settings-apply-btn">Apply</button>
@@ -795,7 +815,8 @@
                     <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-fine-motor')">Fine Motor</a></li>
                     <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-neopixel-led')">Neopixel LED</a></li>
                     <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-mini-12864-module')">Mini 12864 Module</a></li>
-                    <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-servo-gate')">Servo Gate</a></li>
+                    <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-servo-gate')">Case Holder Servo</a></li>
+                    <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-induction-heater')">Induction Heater</a></li>
                     <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-system-control')">System Control</a></li>
                 </ul>
             </div>

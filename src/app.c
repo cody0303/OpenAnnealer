@@ -17,7 +17,6 @@
 #include "app.h"
 #include "motors.h"
 #include "eeprom.h"
-#include "scale.h"
 #include "display.h"
 #include "charge_mode.h"
 #include "rest_endpoints.h"
@@ -27,6 +26,7 @@
 #include "menu.h"
 #include "profile.h"
 #include "servo_gate.h"
+#include "induction_heater.h"
 
 
 int main()
@@ -50,8 +50,9 @@ int main()
         handle_motor_init_error(motor_init_err);
     }
 
-    // Initialize UART
-    scale_init();
+    // Initialize the induction heater trigger (occupies the GPIO the scale UART
+    // used to use; the scale is not used by this application)
+    induction_heater_init();
 
     // Initialize charge mode settings
     charge_mode_config_init();

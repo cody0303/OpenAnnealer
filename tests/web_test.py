@@ -114,7 +114,12 @@ def rest_button_config():
 
 @app.route('/rest/servo_gate_config')
 def rest_servo_gate_config():
-    return {"c0":True,"c1":0.050,"c2":0.125}
+    return {"c0":True,"c1":0.050,"c2":0.125,"c3":3.000,"c4":5.000}
+
+
+@app.route('/rest/induction_heater_config')
+def rest_induction_heater_config():
+    return {"i0":True,"i1":5000,"i2":26,"active":False,"fault":False,"pin_rejected":False}
 
 
 

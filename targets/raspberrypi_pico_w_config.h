@@ -49,8 +49,16 @@
 #define EEPROM_SCL_PIN 11
 #define EEPROM_ADDR 0x50
 
-#define SERVO0_PWM_PIN 26
-#define SERVO1_PWM_PIN 27
+// Only one physical servo is used (the case holder) so only one PWM channel is claimed.
+// GPIO26 (the pin the old dual-shutter design used as its second channel) is left free
+// for other uses below.
+#define SERVO_PWM_PIN 27
 #define SERVO_PWM_SLICE_NUM 5
+
+// Default induction heater trigger pin, used only to seed the EEPROM default the first
+// time the board boots. The actual pin in use is runtime-configurable (see
+// induction_heater.h) and stored in EEPROM, settable via /rest/induction_heater_config
+// or the web UI, since the right pin depends on how each build is wired.
+#define INDUCTION_TRIGGER_PIN_DEFAULT 26
 
 #endif  // RASPBERRYPI_PICO_W_CONFIG_H_

@@ -9,7 +9,7 @@
 
 #include <stdbool.h>    
 
-#define EEPROM_SERVO_GATE_CONFIG_REV                     1              // 16 byte 
+#define EEPROM_SERVO_GATE_CONFIG_REV                     2              // 16 byte
 
 #define SERVO_GATE_RATIO_OPEN       (0.0f)
 #define SERVO_GATE_RATIO_CLOSED     (1.0f)
@@ -43,12 +43,10 @@ typedef enum {
 typedef struct {
     uint16_t servo_gate_config_rev;
     bool servo_gate_enable;
-    float shutter0_close_duty_cycle;
-    float shutter0_open_duty_cycle;
-    float shutter1_close_duty_cycle;
-    float shutter1_open_duty_cycle;
-    float shutter_close_speed_pct_s;  // Per shutter speed (percentage per second)
-    float shutter_open_speed_pct_s;  // Per shutter speed (percentage per second)
+    float close_duty_cycle;
+    float open_duty_cycle;
+    float close_speed_pct_s;  // Percentage per second
+    float open_speed_pct_s;   // Percentage per second
 } eeprom_servo_gate_config_t;
 
 
