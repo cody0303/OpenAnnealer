@@ -121,11 +121,16 @@ bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t siz
     // Read data
     is_ok = eeprom_read(addr, buf, read_size);
 
-    // Unable to read from eeprom, then we will quit
+    // Unable to read from eeprom (e.g. no EEPROM chip present at all) - fall back to
+    // defaults rather than leaving cfg unpopulated. Best-effort write-back: its
+    // failure shouldn't stop cfg from being usable, since the EEPROM may simply not
+    // be there.
     if (!is_ok) {
-        printf("Unable to read from addr: 0x%04x", addr);
+        printf("Unable to read from addr: 0x%04x, applying default configuration\n", addr);
         free(buf);
-        return is_ok;
+        memcpy(cfg, default_cfg, size);
+        save_config(addr, cfg, size);
+        return true;
     }
 
     /**
@@ -166,10 +171,12 @@ bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t siz
         if (calculated_crc32 != received_crc32) {
             printf("CRC32 mismatch at address %x, received: %08lX, calculated: %08lX\n", addr, received_crc32, calculated_crc32);
         }
-        // Apply the default configuration
+        // Apply the default configuration. Best-effort write-back: cfg is already
+        // usable regardless of whether persisting it succeeds.
         free(buf);
         memcpy(cfg, default_cfg, size);
-        return save_config(addr, cfg, size);
+        save_config(addr, cfg, size);
+        return true;
     }
     else {
         printf("Configuration read successfully\n");
