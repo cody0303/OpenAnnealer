@@ -36,6 +36,10 @@ typedef struct {
 motor_config_t coarse_trickler_motor_config;
 motor_config_t fine_trickler_motor_config;
 
+// Set by handle_motor_init_error(); lets other code (menu, REST, future anneal_mode)
+// check whether the motors actually came up instead of assuming they did.
+static motor_init_err_t _motor_last_init_error = MOTOR_INIT_OK;
+
 
 const eeprom_motor_data_t default_motor_data = {
     .motor_data_rev = 0,
@@ -642,6 +646,11 @@ motor_init_err_t motors_init(void) {
 }
 
 
+motor_init_err_t get_motor_init_error(void) {
+    return _motor_last_init_error;
+}
+
+
 const char * get_motor_select_string(motor_select_t selected_motor) {
     if (selected_motor == SELECT_COARSE_TRICKLER_MOTOR) {
         return "Coarse";
@@ -659,8 +668,15 @@ const char * get_motor_select_string(motor_select_t selected_motor) {
 }
 
 
-/* 
-The function will assume the screen and cyw43 are already initialized. 
+/*
+The function will assume the screen and cyw43 are already initialized.
+
+Reports the fault (flashing LED + on-screen message, repeated a bounded number of
+times) and records it for get_motor_init_error(), then RETURNS instead of hanging
+forever. This lets the rest of the system (WiFi/REST/menu) come up even if the
+stepper drivers aren't wired up yet (e.g. bare-board bring-up), since
+motor_set_speed()/motor_enable() already no-op safely on a motor whose
+stepper_speed_control_queue was never created due to a failed init.
 */
 void handle_motor_init_error(motor_init_err_t err) {
     char * error_string;
@@ -684,17 +700,20 @@ void handle_motor_init_error(motor_init_err_t err) {
             break;
     }
 
+    _motor_last_init_error = err;
+
     // Draw the error message on the screen
     u8g2_t * display_handler = get_display_handler();
     char title_string[32] = "Motor Init Error";
 
-    while (true) {
+    const int REPEAT_COUNT = 3;  // Bounded so boot can continue; not an infinite loop
+    for (int repeat = 0; repeat < REPEAT_COUNT; repeat += 1) {
         BaseType_t scheduler_state = xTaskGetSchedulerState();
 
         // Flash LED
         for (int i = 0; i < err; i++) {
             // Set neopixel LED colour
-            _neopixel_led_set_colour(0xFFA500, 0xFFA5000, 0xffffff);
+            _neopixel_led_set_colour(0xFFA500, 0xFFA500, 0xffffff);
             delay_ms(200, scheduler_state);
             _neopixel_led_set_colour(0xFF0000, 0xFF0000, 0xffffff);
             delay_ms(200, scheduler_state);
@@ -715,7 +734,6 @@ void handle_motor_init_error(motor_init_err_t err) {
         u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
         u8g2_DrawStr(display_handler, 5, 25, error_string);
 
-        // Draw error message
         u8g2_SendBuffer(display_handler);
         delay_ms(2000, scheduler_state);
     }
