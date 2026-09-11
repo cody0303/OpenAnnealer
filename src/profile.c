@@ -15,7 +15,10 @@ eeprom_profile_data_t profile_data;
 #define DEFAULT_FEED_RUN_TIME_MS   1000
 #define DEFAULT_FEED_SPEED_RPS     1.0f
 #define DEFAULT_PRE_HEAT_SETTLE_MS 300
-#define DEFAULT_DWELL_TIME_MS      3000
+// 1s: deliberately low/safe rather than a guessed "real" dwell time - actual dwell
+// time is case/alloy/coil dependent and must come from Milestone 6's calibration
+// mode, not this default.
+#define DEFAULT_DWELL_TIME_MS      1000
 #define DEFAULT_POST_HEAT_DELAY_MS 500
 #define DEFAULT_HOLDER_HOLD_RATIO  1.0f  // HOLDER_RATIO_HOLD; servo_gate.h not included here to avoid a circular dependency
 
@@ -33,33 +36,15 @@ const eeprom_profile_data_t default_profile_data = {
     },
     .profiles[1] = {
         .compatibility = 0,
-        .name = "308 Win",
-        .feed_run_time_ms = DEFAULT_FEED_RUN_TIME_MS,
-        .feed_speed_rps = DEFAULT_FEED_SPEED_RPS,
-        .pre_heat_settle_ms = DEFAULT_PRE_HEAT_SETTLE_MS,
-        .dwell_time_ms = DEFAULT_DWELL_TIME_MS,
-        .post_heat_delay_ms = DEFAULT_POST_HEAT_DELAY_MS,
-        .holder_hold_ratio = DEFAULT_HOLDER_HOLD_RATIO,
+        .name = "Profile1",
     },
     .profiles[2] = {
         .compatibility = 0,
-        .name = "9mm Luger",
-        .feed_run_time_ms = DEFAULT_FEED_RUN_TIME_MS,
-        .feed_speed_rps = DEFAULT_FEED_SPEED_RPS,
-        .pre_heat_settle_ms = DEFAULT_PRE_HEAT_SETTLE_MS,
-        .dwell_time_ms = DEFAULT_DWELL_TIME_MS,
-        .post_heat_delay_ms = DEFAULT_POST_HEAT_DELAY_MS,
-        .holder_hold_ratio = DEFAULT_HOLDER_HOLD_RATIO,
+        .name = "Profile2",
     },
     .profiles[3] = {
         .compatibility = 0,
-        .name = "45 ACP",
-        .feed_run_time_ms = DEFAULT_FEED_RUN_TIME_MS,
-        .feed_speed_rps = DEFAULT_FEED_SPEED_RPS,
-        .pre_heat_settle_ms = DEFAULT_PRE_HEAT_SETTLE_MS,
-        .dwell_time_ms = DEFAULT_DWELL_TIME_MS,
-        .post_heat_delay_ms = DEFAULT_POST_HEAT_DELAY_MS,
-        .holder_hold_ratio = DEFAULT_HOLDER_HOLD_RATIO,
+        .name = "Profile3",
     },
     .profiles[4] = {
         .compatibility = 0,
