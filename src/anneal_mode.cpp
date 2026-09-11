@@ -140,7 +140,11 @@ static void anneal_mode_hold(void) {
     // into a holder that's still in its dropped/clear position (left over from the
     // previous case) risks the incoming case missing the holder or binding against
     // it mid-move. Block until the move completes.
-    servo_gate_set_ratio(profile_get_selected()->holder_hold_ratio, true);
+    //
+    // Always the same fixed position, not per-profile: the holder is a swing arm with
+    // a manual adjustment nut for case length, so there's only ever one "in" endpoint
+    // for the servo to reach, regardless of which case type is loaded.
+    servo_gate_set_ratio(HOLDER_RATIO_HOLD, true);
 
     anneal_mode_config.anneal_mode_state = ANNEAL_MODE_FEED;
 }

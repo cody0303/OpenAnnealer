@@ -75,16 +75,17 @@ uint8_t anneal_calibration_mode_menu() {
 
     profile_t * profile = profile_get_selected();
 
-    // Position the holder using the selected profile's ratio BEFORE feeding a case
-    // in - matches anneal_mode's own ordering (see anneal_mode_hold()'s comment):
-    // feeding into a holder that's still dropped/clear risks the case missing the
-    // holder or binding against it mid-move.
+    // Position the holder BEFORE feeding a case in - matches anneal_mode's own
+    // ordering (see anneal_mode_hold()'s comment): feeding into a holder that's still
+    // dropped/clear risks the case missing the holder or binding against it mid-move.
+    // Always the same fixed "hold" endpoint, not per-profile - the holder is a swing
+    // arm with a manual adjustment nut for case length.
     strcpy(title_string, "Calibrating");
     strcpy(line1, "Positioning...");
     memset(line2, 0x0, sizeof(line2));
     show_next_key = false;
 
-    servo_gate_set_ratio(profile->holder_hold_ratio, true);
+    servo_gate_set_ratio(HOLDER_RATIO_HOLD, true);
 
     // Feed a case in, same as anneal_mode's own feed step.
     strcpy(line1, "Feeding case...");

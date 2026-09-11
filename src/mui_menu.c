@@ -164,10 +164,6 @@ uint8_t render_profile_heat_details(mui_t *ui, uint8_t msg) {
             snprintf(buf, sizeof(buf), "Post-heat:%lums", current_profile->post_heat_delay_ms);
             u8g2_DrawStr(u8g2, 5, 35, buf);
 
-            memset(buf, 0x0, sizeof(buf));
-            snprintf(buf, sizeof(buf), "Hold ratio:%0.2f", current_profile->holder_hold_ratio);
-            u8g2_DrawStr(u8g2, 5, 45, buf);
-
             break;
         }
     }

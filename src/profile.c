@@ -7,11 +7,12 @@
 
 eeprom_profile_data_t profile_data;
 
-// Placeholder recipes - actual dwell_time_ms/holder_hold_ratio per case type are
-// meant to be discovered via Milestone 6's calibration mode and saved back here, not
-// guessed up front. feed_run_time_ms/feed_speed_rps/pre_heat_settle_ms/
-// post_heat_delay_ms carry over the same starting values anneal_mode used as its old
-// global defaults, since those aren't case-length dependent in the same way.
+// Placeholder recipes - actual dwell_time_ms per case type is meant to be discovered
+// via Milestone 6's calibration mode and saved back here, not guessed up front.
+// feed_run_time_ms/feed_speed_rps/pre_heat_settle_ms/post_heat_delay_ms carry over the
+// same starting values anneal_mode used as its old global defaults, since those aren't
+// case-length dependent. Holder position isn't part of the recipe at all - see
+// profile.h's comment on profile_t.
 #define DEFAULT_FEED_RUN_TIME_MS   1000
 #define DEFAULT_FEED_SPEED_RPS     1.0f
 #define DEFAULT_PRE_HEAT_SETTLE_MS 300
@@ -20,7 +21,6 @@ eeprom_profile_data_t profile_data;
 // mode, not this default.
 #define DEFAULT_DWELL_TIME_MS      1000
 #define DEFAULT_POST_HEAT_DELAY_MS 500
-#define DEFAULT_HOLDER_HOLD_RATIO  1.0f  // HOLDER_RATIO_HOLD; servo_gate.h not included here to avoid a circular dependency
 
 const eeprom_profile_data_t default_profile_data = {
     .profile_data_rev = 0,
@@ -32,7 +32,6 @@ const eeprom_profile_data_t default_profile_data = {
         .pre_heat_settle_ms = DEFAULT_PRE_HEAT_SETTLE_MS,
         .dwell_time_ms = DEFAULT_DWELL_TIME_MS,
         .post_heat_delay_ms = DEFAULT_POST_HEAT_DELAY_MS,
-        .holder_hold_ratio = DEFAULT_HOLDER_HOLD_RATIO,
     },
     .profiles[1] = {
         .compatibility = 0,
@@ -118,7 +117,6 @@ bool http_rest_profile_config(struct fs_file *file, int num_params, char *params
     // p5 (int): pre_heat_settle_ms
     // p6 (int): dwell_time_ms
     // p7 (int): post_heat_delay_ms
-    // p8 (float): holder_hold_ratio
     // ee (bool): save to eeprom
     static char buf[256];
 
@@ -166,9 +164,6 @@ bool http_rest_profile_config(struct fs_file *file, int num_params, char *params
             else if (strcmp(params[idx], "p7") == 0) {
                 current_profile->post_heat_delay_ms = strtoul(values[idx], NULL, 10);
             }
-            else if (strcmp(params[idx], "p8") == 0) {
-                current_profile->holder_hold_ratio = strtof(values[idx], NULL);
-            }
             else if (strcmp(params[idx], "ee") == 0) {
                 save_to_eeprom = string_to_boolean(values[idx]);
             }
@@ -182,7 +177,7 @@ bool http_rest_profile_config(struct fs_file *file, int num_params, char *params
         // Response
         snprintf(buf, sizeof(buf),
                  "%s"
-                 "{\"pf\":%d,\"p0\":%ld,\"p1\":%ld,\"p2\":\"%s\",\"p3\":%lu,\"p4\":%0.3f,\"p5\":%lu,\"p6\":%lu,\"p7\":%lu,\"p8\":%0.3f}",
+                 "{\"pf\":%d,\"p0\":%ld,\"p1\":%ld,\"p2\":\"%s\",\"p3\":%lu,\"p4\":%0.3f,\"p5\":%lu,\"p6\":%lu,\"p7\":%lu}",
                  http_json_header,
                  profile_idx,
                  current_profile->rev,
@@ -192,8 +187,7 @@ bool http_rest_profile_config(struct fs_file *file, int num_params, char *params
                  current_profile->feed_speed_rps,
                  current_profile->pre_heat_settle_ms,
                  current_profile->dwell_time_ms,
-                 current_profile->post_heat_delay_ms,
-                 current_profile->holder_hold_ratio);
+                 current_profile->post_heat_delay_ms);
     }
 
     size_t response_len = strlen(buf);

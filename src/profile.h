@@ -9,7 +9,7 @@
 #define PROFILE_NAME_MAX_LEN    16
 #define MAX_PROFILE_CNT         8
 
-#define EEPROM_PROFILE_DATA_REV             2           // 16 bit - bumped: PID/flow-speed fields replaced with anneal recipe fields
+#define EEPROM_PROFILE_DATA_REV             3           // 16 bit - bumped: holder_hold_ratio removed (holder is now a fixed-position swing arm with a manual per-case-length adjustment nut, not a per-profile servo angle)
 
 typedef struct
 {
@@ -18,15 +18,17 @@ typedef struct
 
     char name[PROFILE_NAME_MAX_LEN];
 
-    // Anneal recipe: how this case type should be fed/held/heated. dwell_time_ms and
-    // holder_hold_ratio are exactly the two values Milestone 6's calibration mode is
-    // meant to help discover and save per profile.
+    // Anneal recipe: how this case type should be fed/held/heated. dwell_time_ms is
+    // the one value Milestone 6's calibration mode is meant to help discover and save
+    // per profile. Holder position is NOT part of the recipe: the physical holder is a
+    // swing arm with a manual adjustment nut for case length, so the servo always
+    // swings to the same two fixed endpoints (HOLDER_RATIO_HOLD/HOLDER_RATIO_DROP in
+    // servo_gate.h) regardless of which profile is selected.
     uint32_t feed_run_time_ms;   // How long to run the feeder at feed_speed_rps to advance one case
     float feed_speed_rps;
     uint32_t pre_heat_settle_ms; // Let the holder finish moving before enabling the coil
     uint32_t dwell_time_ms;      // Heat time; must be <= the induction heater's max_dwell_ms
     uint32_t post_heat_delay_ms; // Let the coil fully de-energize before dropping
-    float holder_hold_ratio;     // Servo ratio that seats this case length in the holder
 } profile_t;
 
 
