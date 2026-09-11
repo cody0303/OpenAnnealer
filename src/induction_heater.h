@@ -42,6 +42,7 @@ void induction_heater_enable(bool enable);
 bool induction_heater_is_active(void);
 
 bool http_rest_induction_heater_config(struct fs_file *file, int num_params, char *params[], char *values[]);
+bool http_rest_induction_heater_state(struct fs_file *file, int num_params, char *params[], char *values[]);
 
 #ifdef __cplusplus
 }

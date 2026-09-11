@@ -190,3 +190,34 @@ bool http_rest_induction_heater_config(struct fs_file *file, int num_params, cha
 
     return true;
 }
+
+
+bool http_rest_induction_heater_state(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    // Mappings:
+    // h0 (bool): enable/disable the coil trigger. Always bounded by the safety
+    //            timer (max_dwell_ms) regardless of caller behaviour.
+
+    static char json_buffer[128];
+
+    for (int idx = 0; idx < num_params; idx += 1) {
+        if (strcmp(params[idx], "h0") == 0) {
+            induction_heater_enable(string_to_boolean(values[idx]));
+        }
+    }
+
+    snprintf(json_buffer,
+             sizeof(json_buffer),
+             "%s"
+             "{\"h0\":%s,\"fault\":%s}",
+             http_json_header,
+             boolean_to_string(induction_heater.is_active),
+             boolean_to_string(induction_heater.safety_cutoff_fault));
+
+    size_t data_length = strlen(json_buffer);
+    file->data = json_buffer;
+    file->len = data_length;
+    file->index = data_length;
+    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
+
+    return true;
+}
