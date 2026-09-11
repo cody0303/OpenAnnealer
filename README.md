@@ -1,150 +1,95 @@
-# OpenTrickler RP2040 Controller
+# OpenAnnealer
 
-This repo is for the firmware that utilises the Raspberry Pi RP2040/RP2350 microcontroller to operate the [OpenTrickler](https://github.com/eamars/OpenTrickler).
+> **Work in progress.** This is an active conversion of [OpenTrickler](https://github.com/eamars/OpenTrickler) — RP2040/RP2350 firmware originally built for an automated powder-charging scale trickler — into a controller for a **cartridge case annealer**. Large parts of the codebase, menu, web UI, and this README still describe the original trickler behavior and haven't been converted yet. Expect breaking changes on `main`, and treat anything below as a snapshot of where the fork currently stands, not a finished product.
 
-Join our [discord server](https://discord.gg/ZhdThA2vrW) for help and development information. 
+This repo is not affiliated with the upstream OpenTrickler project or its community — please don't bring OpenAnnealer questions to their Discord.
 
-## Features
+## What's changing, and why
 
-### Supported Scales
+The target hardware is a stepper-driven case feeder pushing cartridge cases into a vertical holder inside a horizontally-mounted induction coil, with a servo holding the case up in the coil during the heat dwell and then swinging clear so it drops. Most of the electrical hardware carries over from OpenTrickler (RP2040/RP2350, TMC2209 steppers, PWM servo, mini 12864 display/encoder/Neopixel, on-board EEPROM, WiFi/REST/web UI) — what's changing is the control logic and some pin assignments.
 
-| Supported Scale              | Read | Force Zero (Tare)                 | Notes                             |
-| ---------------------------- | ---- | --------------------------------- | --------------------------------- |
-| A&D fx-i series (Std Format) | ✔️   | ✔️                                | Baud: **19200**, Format: 8d,1s,np |
-| Steinberg SBS                | ✔️   | ❌                                 | Baud: 9600, Format: 8d,1s,np      |
-| G&G JJ / JJB series          | ✔️   | ✔️(Unreliable)                    | Baud: 9600, Format: 8d,1s,np      |
-| U.S.Solid JFDBS              | ✔️   | ❌                                 | Baud: 9600, Format: 8d,1s,np      |
-| JM Science series            | ✔️   | ❌                                 | Baud: 9600, Format: 8d,1s,np      |
-| Creedmoor Sports series      | ✔️   | ❌                                 | Baud: 9600, Format: 8d,1s,np      |
-| Radwag R series              | ✔️   | ✔️                                | Baud: 9600, Format: 8d,1s,np      |
-| Sartorius series             | ✔️   | ❌ (Not supported yet, but doable) | Baud: 9600, Format: **7d**,1s,np  |
-| Generic Scale Driver         | ✔️   |                                   | Depends                           |
+### Done so far
 
-### Supported Hardware
+- Induction heater trigger: on/off GPIO control with a hard FreeRTOS safety timer that force-disables the coil after a configurable max dwell time, independent of anything else in the system. The trigger pin is runtime-configurable (EEPROM + REST + web UI), not hardcoded, since the right pin depends on how each build is wired.
+- Case holder servo simplified from the original dual-shutter (2-channel) design down to a single PWM channel, since only one physical servo is used.
+
+### Still using the original OpenTrickler logic (not yet converted)
+
+- The scale subsystem, Charge Mode, and Cleanup Mode are all still present and still describe powder trickling, not case annealing.
+- The LCD menu, REST API, and web portal mostly still reflect the trickler workflow.
+- No case-feeder/anneal-cycle state machine exists yet.
+
+### Supported Hardware (current fork)
 
 - Mini 12864 Display Module (with rotary encoder, 3x Neopixel LED)
-
 - Dedicated Neopixel LED (up to 16 chains)
-
-- 2x Miniture Servo Motors (TowerPro SG/MG90S, or similar)
-
-- 2x TMC2209 (STEP/DIR with 1-line UART)
-
+- 1x Miniature Servo Motor (TowerPro SG/MG90S, or similar) — case holder
+- 2x TMC2209 (STEP/DIR with 1-line UART) — one drives the case feeder, the second is unused for now
 - On-board EEPROM (up to 256 kbits)
+- Induction heater module, triggered via a configurable GPIO
 
 ### Remote Connectivity
 
-* WiFi (2.4 Ghz only,  AP or Station mode)
-
+* WiFi (2.4 GHz only, AP or Station mode)
 * Web Interface
-
-* RESTFul Interface
-
+* RESTful Interface
 * mDNS Lookup
 
-### Operating Modes
-
-* Charge Mode
-
-* Cleanup Mode
-
-## Get Started
-
-### Use with mini 12864 display
-
-1. From the main menu, select "Start".
-
-    ![12864_main_menu](resources/main_menu_screen_mirror.png)
-
-2. Provide the target charge weight in grain then press Next to continue.
-
-    ![12864_select_charge_weight](resources/select_weight_screen_mirror.png)
-
-3. Remember to put pan on the scale. 
-
-    ![12864_waring_put_pan_on_scale](resources/put_pan_warning_screen_mirror.png)
-
-4. Wait for scale to stable at 0. Or press the rotary button to force Re-zero. 
-
-    ![12864_wait_for_zero](resources/wait_for_zero_screen_mirror.png)
-
-5. Wait for charge to reach the set point
-
-    ![12864_wait for charge](resources/wait_for_charge_screen_mirror.png)
-
-6. Once the charge set point is reached, remove the pan. The program shall restart from step 4.
-
-    ![12864_wait_for_cup_removal](resources/wait_for_cup_removal.png)
-
-## Pre-build firmware
-
-[![Auto Build](https://github.com/eamars/OpenTrickler-RP2040-Controller/actions/workflows/cmake.yml/badge.svg)](https://github.com/eamars/OpenTrickler-RP2040-Controller/actions/workflows/cmake.yml)
-
-You can download the pre-built firmware based on the latest release from above link. Similar to flashing other RP2040 firmware, you need to put the Pico W into the bootloader mode by pressing BOOTSEL button and plug in the micro-USB cable. Then you can copy the .uf2 file from the package to the pico. Shortly after the Pico W will be programmed automatically. 
-
-## Build OpenTrickler firmware from source on Windows
+## Building from source
 
 Reference: https://datasheets.raspberrypi.com/pico/getting-started-with-pico.pdf
 
-### Prerequistes
+### Prerequisites
 
-[Git](https://gitforwindows.org/) and [VSCode](https://code.visualstudio.com/) are required to build the firmware. To install build dependencies, you will need to use:
- [VSCode Raspberry Pi Pico extension](https://marketplace.visualstudio.com/items?itemName=raspberry-pi.raspberry-pi-pico) and create an pico-example project (any project will trigger the download of pico-sdk, a collection of tools required to build the firmware locally). When creating the example project, select a Pico SDK version of v2.1.1 in the version dropdown.
+[Git](https://gitforwindows.org/) and [VSCode](https://code.visualstudio.com/) are required to build the firmware. To install build dependencies, use the [VSCode Raspberry Pi Pico extension](https://marketplace.visualstudio.com/items?itemName=raspberry-pi.raspberry-pi-pico) and create a pico-example project (any project will trigger the download of pico-sdk, a collection of tools required to build the firmware locally). When creating the example project, select a Pico SDK version of v2.1.1 in the version dropdown — this repo's `library/pico-sdk` submodule is pinned to that exact release, and `configure_env.ps1` expects the matching toolchain/CMake/Ninja/picotool versions that the extension downloads alongside it.
 
-Then you can verify the installation of pico-sdk by inspecting the path from `C:\Users\<user name>\.pico-sdk`. 
+Then you can verify the installation of pico-sdk by inspecting the path from `C:\Users\<user name>\.pico-sdk`.
 ![pico_sdk_path](resources/pico_sdk_path.png)
 
 ### Downloading Source Code
 
-From PowerShell, execute below command to fetch the source code: 
-    
-    git clone https://github.com/eamars/OpenTrickler-RP2040-Controller
-    
+From PowerShell, execute below command to fetch the source code:
+
+    git clone https://github.com/cody0303/OpenAnnealer
+
 Next change to the cloned directory
 
-    
-    cd OpenTrickler-RP2040-Controller
-    
+    cd OpenAnnealer
 
-Next use git to initalise the required submodules
-    
+Next use git to initialise the required submodules
+
     git submodule init
-    
 
 Now using git clone all submodules. It may take up to 5 minutes to clone all required submodules.
-    
+
     git submodule update --init --recursive
-    
+
 ### Configure CMake
 
-Open the PowerShell, run the below script to load required environment variables: 
-    
+Open the PowerShell, run the below script to load required environment variables:
+
     .\configure_env.ps1
-    
+
 To build firmware for Pico W, from the same PowerShell session, run below command:
-    
+
     cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=pico_w
-    
+
 To build firmware for Pico 2W, from the same PowerShell session, run below command:
-    
+
     cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=pico2_w
-    
 
 ### Build Firmware
 
-From the same workspace root directory, run the below command to build the firmware from source code into the `build` directory: 
-    
+From the same workspace root directory, run the below command to build the firmware from source code into the `build` directory:
+
     cmake --build build --config Debug
-    
-On success, you can find the app.uf2 from `<workspace_root>/build/` directory. 
+
+On success, you can find app.uf2 in the `<workspace_root>/build/` directory. To flash it, put the Pico into bootloader mode (hold BOOTSEL while plugging in the USB cable) and copy app.uf2 onto the drive that appears.
 
 ### Use VSCode
 
-You need to call VScode from script to pre-configure environment variables. You can simply call
-    
+You need to call VSCode from script to pre-configure environment variables. You can simply call
+
     .\run_vscode.ps1
-    
 
-The VSCode cmake plugin is pre-configured to build for Pico 2W by default. You can change the build config to Pico W by modifying `<workspace_root>.vscode/settings.json`. 
-
-
+The VSCode cmake plugin is pre-configured to build for Pico 2W by default. You can change the build config to Pico W by modifying `<workspace_root>.vscode/settings.json`.
