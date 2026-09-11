@@ -50,6 +50,8 @@ static uint8_t menu_get_parent_form_id(uint8_t form_id) {
         case 36: return 30;
         case 37: return 30;
         case 39: return 30;
+        case 42: return 30;
+        case 43: return 30;
 
         case 40: return 1;
         case 41: return 40;
