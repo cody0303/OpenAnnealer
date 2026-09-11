@@ -390,6 +390,22 @@ void wireless_task(void *p) {
 }
 
 
+bool wireless_is_network_ready(void) {
+    if (wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN) {
+        // AP mode's radio is our own access point, not a join to someone else's - once
+        // it's listening there's no separate "associated" phase to poll for.
+        return true;
+    }
+    if (wireless_config.current_wireless_state == WIRELESS_STATE_STA_MODE_LISTEN) {
+        // Unlike current_wireless_state (only ever set once, at the end of the initial
+        // connect attempt), this re-checks the live link every call, so a later drop is
+        // correctly reflected rather than reporting stale "ready" forever.
+        return cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_STA) == CYW43_LINK_UP;
+    }
+    return false;
+}
+
+
 uint8_t wireless_view_wifi_info(void) {
     static TaskHandle_t wirelss_info_render_task_handler = NULL;
     if (wirelss_info_render_task_handler == NULL) {

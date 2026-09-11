@@ -17,13 +17,22 @@
 #include "common.h"
 #include "display.h"
 #include "neopixel_led.h"
+#include "wireless.h"
 
-// How long a freshly-booted candidate image runs before it's allowed to confirm
-// itself via rom_explicit_buy(). Deliberately not "immediately on boot" - that would
-// defeat the entire point of TBYB (an image that hangs/crashes a few seconds in would
-// already be permanent). This is a simple v1 time-based heuristic; a future pass could
-// gate this on an actual "WiFi associated + REST responding" health check instead.
-#define OTA_CONFIRM_DELAY_MS       20000
+// A freshly-booted candidate image is only allowed to confirm itself (rom_explicit_buy())
+// once the network has actually proven itself reachable, not just after a flat delay -
+// deliberately not "immediately on boot" either, since that would defeat the entire point
+// of TBYB (an image that hangs/crashes a few seconds in would already be permanent).
+//
+// wireless_is_network_ready() is polled on this interval; the network must read ready for
+// a continuous OTA_HEALTH_MIN_STABLE_MS before it counts (guards against confirming on a
+// flaky first join that immediately drops again). OTA_HEALTH_MAX_WAIT_MS is a fallback
+// only - if the network never comes up at all (e.g. no WiFi configured, hardware fault),
+// this still confirms eventually rather than leaving the image permanently tentative
+// forever, matching the old flat-timer behaviour as a worst case rather than the norm.
+#define OTA_HEALTH_POLL_INTERVAL_MS 1000
+#define OTA_HEALTH_MIN_STABLE_MS    5000
+#define OTA_HEALTH_MAX_WAIT_MS      60000
 
 // Delay between finishing a successful upload (so the HTTP response has time to reach
 // the client) and actually triggering the flash-update reboot.
@@ -38,6 +47,9 @@ typedef struct {
     int8_t running_partition;      // from rom_get_boot_info(), -1 if unknown
     bool rollback_fault;           // true after boot-time rollback detection, until acknowledged
     TimerHandle_t confirm_timer;
+    TickType_t health_check_start_tick;
+    TickType_t network_ready_since_tick;   // only meaningful while network_currently_ready
+    bool network_currently_ready;
 
     // In-progress upload state (not persisted - purely transient).
     bool download_active;
@@ -107,9 +119,7 @@ static void _ota_show_rollback_fault(void) {
 }
 
 
-static void _ota_confirm_timer_callback(TimerHandle_t timer) {
-    (void) timer;
-
+static void _ota_confirm_now(void) {
     static uint8_t buy_scratch[4096] __attribute__((aligned(4)));
     int rc = rom_explicit_buy(buy_scratch, sizeof(buy_scratch));
 
@@ -121,6 +131,44 @@ static void _ota_confirm_timer_callback(TimerHandle_t timer) {
     } else {
         printf("OTA: rom_explicit_buy() FAILED rc=%d - leaving update_pending set\n", rc);
     }
+}
+
+
+// Runs every OTA_HEALTH_POLL_INTERVAL_MS while a candidate image awaits confirmation.
+// Confirms once the network has been continuously ready for OTA_HEALTH_MIN_STABLE_MS,
+// or unconditionally once OTA_HEALTH_MAX_WAIT_MS has elapsed as a fallback - see the
+// macro comments above for why the fallback exists.
+static void _ota_health_check_timer_callback(TimerHandle_t timer) {
+    TickType_t now = xTaskGetTickCount();
+    bool ready = wireless_is_network_ready();
+
+    if (ready) {
+        if (!ota.network_currently_ready) {
+            ota.network_ready_since_tick = now;
+            ota.network_currently_ready = true;
+        }
+    } else {
+        ota.network_currently_ready = false;
+    }
+
+    uint32_t elapsed_ms = (now - ota.health_check_start_tick) * portTICK_PERIOD_MS;
+    bool stable_long_enough = ota.network_currently_ready &&
+        ((now - ota.network_ready_since_tick) * portTICK_PERIOD_MS >= OTA_HEALTH_MIN_STABLE_MS);
+    bool timed_out = elapsed_ms >= OTA_HEALTH_MAX_WAIT_MS;
+
+    if (!stable_long_enough && !timed_out) {
+        return;
+    }
+
+    xTimerStop(timer, 0);
+
+    if (timed_out && !stable_long_enough) {
+        printf("OTA: network health check timed out after %lu ms, confirming anyway (fallback)\n", elapsed_ms);
+    } else {
+        printf("OTA: network ready and stable, confirming update\n");
+    }
+
+    _ota_confirm_now();
 }
 
 
@@ -159,11 +207,13 @@ void ota_update_init(void) {
     }
 
     if (ota.running_partition >= 0 && ota.eeprom_ota_data.target_partition == (uint8_t) ota.running_partition) {
-        // We are the freshly-flashed candidate. Don't confirm immediately - give
-        // ourselves a while to prove we're actually stable first.
-        printf("OTA: running as pending candidate on partition %d, will self-confirm in %d ms\n",
-               ota.running_partition, OTA_CONFIRM_DELAY_MS);
-        ota.confirm_timer = xTimerCreate("OtaConfirm", pdMS_TO_TICKS(OTA_CONFIRM_DELAY_MS), pdFALSE, NULL, _ota_confirm_timer_callback);
+        // We are the freshly-flashed candidate. Don't confirm immediately - poll for
+        // real network health first (see _ota_health_check_timer_callback()).
+        printf("OTA: running as pending candidate on partition %d, waiting for network health before self-confirming\n",
+               ota.running_partition);
+        ota.health_check_start_tick = xTaskGetTickCount();
+        ota.network_currently_ready = false;
+        ota.confirm_timer = xTimerCreate("OtaHealthCheck", pdMS_TO_TICKS(OTA_HEALTH_POLL_INTERVAL_MS), pdTRUE, NULL, _ota_health_check_timer_callback);
         if (ota.confirm_timer != NULL) {
             xTimerStart(ota.confirm_timer, portMAX_DELAY);
         }

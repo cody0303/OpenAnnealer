@@ -39,8 +39,9 @@ extern "C" {
 // last known attempt targeted a DIFFERENT partition than the one we're running on now -
 // recognises that as a failed/rolled-back update and surfaces it (LCD, neopixel, REST)
 // until a new update attempt starts. If instead we're running on the partition that was
-// the pending candidate, starts a delayed self-confirmation timer rather than confirming
-// immediately - see ota_update.c for why immediate confirmation would defeat the point.
+// the pending candidate, starts a periodic network-health-check timer that confirms once
+// connectivity is proven stable (or a fallback timeout elapses) rather than confirming
+// immediately or on a flat timer alone - see ota_update.c for details.
 // Must run after eeprom_init() and after the LCD/neopixel are initialised.
 void ota_update_init(void);
 

@@ -38,6 +38,12 @@ bool wireless_init(void);
 bool wireless_config_save();
 uint8_t wireless_view_wifi_info(void);
 
+// True once the network stack is actually reachable for REST/OTA traffic: in STA mode
+// this re-checks the live cyw43 link status every call (not just the one-time result of
+// the initial connect), so it correctly flips back to false if the link later drops; in
+// AP mode the radio has no separate "joining" phase, so listening state alone counts.
+bool wireless_is_network_ready(void);
+
 bool http_rest_wireless_config(struct fs_file *file, int num_params, char *params[], char *values[]);
 
 #ifdef __cplusplus
