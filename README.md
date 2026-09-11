@@ -4,23 +4,27 @@
 
 This repo is not affiliated with the upstream OpenTrickler project or its community — please don't bring OpenAnnealer questions to their Discord.
 
+**Hardware target: Pico 2 W (RP2350) only.** OpenTrickler supports both the original Pico W (RP2040) and Pico 2 W (RP2350); this fork is standardizing on RP2350, since planned OTA firmware updates rely on RP2350's native partition-table/"Try Before You Buy" boot mechanism, which doesn't exist on RP2040. Pico W build instructions have been removed accordingly — if you're on a Pico W, this project isn't for you.
+
 ## What's changing, and why
 
-The target hardware is a stepper-driven case feeder pushing cartridge cases into a vertical holder inside a horizontally-mounted induction coil, with a servo holding the case up in the coil during the heat dwell and then swinging clear so it drops. Most of the electrical hardware carries over from OpenTrickler (RP2040/RP2350, TMC2209 steppers, PWM servo, mini 12864 display/encoder/Neopixel, on-board EEPROM, WiFi/REST/web UI) — what's changing is the control logic and some pin assignments.
+The target hardware is a stepper-driven case feeder pushing cartridge cases into a vertical holder inside a horizontally-mounted induction coil, with a servo holding the case up in the coil during the heat dwell and then swinging clear so it drops. Most of the electrical hardware carries over from OpenTrickler (RP2350, TMC2209 steppers, PWM servo, mini 12864 display/encoder/Neopixel, on-board EEPROM, WiFi/REST/web UI) — what's changing is the control logic and some pin assignments.
 
 ### Done so far
 
 - Induction heater trigger: on/off GPIO control with a hard FreeRTOS safety timer that force-disables the coil after a configurable max dwell time, independent of anything else in the system. The trigger pin is runtime-configurable (EEPROM + REST + web UI), not hardcoded, since the right pin depends on how each build is wired.
 - Case holder servo simplified from the original dual-shutter (2-channel) design down to a single PWM channel, since only one physical servo is used.
+- The core anneal cycle: `charge_mode` has been replaced with an anneal-cycle state machine (feed a case in → hold it in the coil → heat for a configured dwell → drop it → repeat), bench-verified including multi-cycle runs and an immediate coil-off abort.
 
 ### Still using the original OpenTrickler logic (not yet converted)
 
-- The scale subsystem, Charge Mode, and Cleanup Mode are all still present and still describe powder trickling, not case annealing.
-- The LCD menu, REST API, and web portal mostly still reflect the trickler workflow.
-- No case-feeder/anneal-cycle state machine exists yet.
+- The scale subsystem and Cleanup Mode are still present and still describe powder trickling, not case annealing.
+- The LCD menu, REST API, and web portal mostly still reflect the trickler workflow (the anneal cycle above is reachable, but menu labels/web UI haven't been reworked for it yet).
+- OTA firmware updates (in progress) and a dwell-time calibration mode don't exist yet.
 
 ### Supported Hardware (current fork)
 
+- Raspberry Pi Pico 2 W (RP2350) — see hardware target note above
 - Mini 12864 Display Module (with rotary encoder, 3x Neopixel LED)
 - Dedicated Neopixel LED (up to 16 chains)
 - 1x Miniature Servo Motor (TowerPro SG/MG90S, or similar) — case holder
@@ -70,11 +74,7 @@ Open the PowerShell, run the below script to load required environment variables
 
     .\configure_env.ps1
 
-To build firmware for Pico W, from the same PowerShell session, run below command:
-
-    cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=pico_w
-
-To build firmware for Pico 2W, from the same PowerShell session, run below command:
+To build firmware for Pico 2 W (the only supported target), from the same PowerShell session, run below command:
 
     cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=pico2_w
 
@@ -92,4 +92,4 @@ You need to call VSCode from script to pre-configure environment variables. You 
 
     .\run_vscode.ps1
 
-The VSCode cmake plugin is pre-configured to build for Pico 2W by default. You can change the build config to Pico W by modifying `<workspace_root>.vscode/settings.json`.
+The VSCode cmake plugin is pre-configured to build for Pico 2 W.
