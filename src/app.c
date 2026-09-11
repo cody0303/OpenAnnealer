@@ -27,6 +27,7 @@
 #include "profile.h"
 #include "servo_gate.h"
 #include "induction_heater.h"
+#include "ota_update.h"
 
 
 int main()
@@ -40,6 +41,13 @@ int main()
 
     // Configure other functions from mini 12864 display
     mini_12864_module_init();
+
+    // Check for a pending OTA update: confirm it (after a stability delay) if we're
+    // the freshly-flashed candidate, or surface a rollback fault if we're not.
+    // Needs EEPROM (already up) and the LCD/neopixel (just initialized) for fault
+    // display, and must run before wireless_init() so a rollback fault is visible
+    // before any network activity starts.
+    ota_update_init();
 
     // Initialize wireless settings
     wireless_init();

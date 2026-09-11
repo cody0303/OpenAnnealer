@@ -758,6 +758,37 @@
                                 <input type="text" class="input input-bordered" name="s3" disabled="disabled" readonly>
                             </div>
 
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Running Partition</span>
+                                <input type="text" class="input input-bordered" name="s7" disabled="disabled" readonly>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Last Update Result</span>
+                                <input type="text" class="input input-bordered" name="s8" disabled="disabled" readonly>
+                            </div>
+
+                            <div id="otaFaultAlert" role="alert" class="alert alert-error" style="display: none;">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 h-6 w-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"></path></svg>
+                                <span>The last update did not take. The bootrom automatically rolled back to this (previous) firmware.</span>
+                                <button type="button" class="btn btn-sm" onclick="otaAcknowledgeFault()">Acknowledge</button>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-2">
+                                <span class="label-text">Upload New Firmware (.uf2/.bin, TBYB + versioned build)</span>
+                                <input type="file" id="otaFileInput" class="file-input file-input-bordered w-full">
+                                <button type="button" class="btn btn-primary" id="otaUploadBtn" onclick="otaUploadFirmware()">Upload & Update</button>
+
+                                <progress id="otaUploadProgress" class="progress progress-primary" value="0" max="100" style="display: none;"></progress>
+
+                                <div id="otaUploadStatusText" class="text-sm"></div>
+
+                                <div role="alert" class="alert alert-warning">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"></path></svg>
+                                    <span>The device reboots into the new firmware automatically after a successful upload. If it doesn't come back up correctly, it will roll back to this firmware on its own - reload this page after a minute to confirm.</span>
+                                </div>
+                            </div>
+
                             <div class="divider"></div>
 
                             <div class="grid grid-cols-1 gap-1">
@@ -1495,6 +1526,79 @@
                 }
             })
         }
+
+        if (sectionId === "settings-system-control") {
+            _refreshOtaFaultAlert();
+        }
+    }
+
+    // Shows/hides the "update rolled back" alert on the System Control page based on
+    // the OTA module's fault flag (not part of /rest/system_control's plain key-value
+    // fields, so this is a separate fetch rather than piggybacking on the populate
+    // logic above).
+    function _refreshOtaFaultAlert() {
+        fetch("/rest/ota_update")
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById("otaFaultAlert").style.display = data.fault ? "flex" : "none";
+        })
+        .catch(() => {});
+    }
+
+    function otaAcknowledgeFault() {
+        fetch("/rest/ota_update?ack=true")
+        .then(() => _refreshOtaFaultAlert());
+    }
+
+    // Uploads the selected firmware file as a raw POST body to /ota_upload (handled
+    // by src/ota_update.c's httpd_post_* callbacks, not the query-param REST pattern
+    // used everywhere else) and reports upload progress. The device reboots into the
+    // new image automatically a moment after a successful upload, so the connection
+    // is expected to drop; this only reports the upload itself succeeding, not
+    // whether the new firmware ultimately confirms or rolls back.
+    function otaUploadFirmware() {
+        const fileInput = document.getElementById("otaFileInput");
+        const statusText = document.getElementById("otaUploadStatusText");
+        const progressBar = document.getElementById("otaUploadProgress");
+        const uploadBtn = document.getElementById("otaUploadBtn");
+
+        if (!fileInput.files || fileInput.files.length === 0) {
+            statusText.textContent = "Choose a firmware file first.";
+            return;
+        }
+
+        const file = fileInput.files[0];
+        uploadBtn.disabled = true;
+        progressBar.style.display = "block";
+        progressBar.value = 0;
+        statusText.textContent = `Uploading ${file.name} (${file.size} bytes)...`;
+
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/ota_upload", true);
+        xhr.setRequestHeader("Content-Type", "application/octet-stream");
+
+        xhr.upload.onprogress = function(event) {
+            if (event.lengthComputable) {
+                progressBar.value = Math.round((event.loaded / event.total) * 100);
+            }
+        };
+
+        xhr.onload = function() {
+            uploadBtn.disabled = false;
+            if (xhr.status === 200) {
+                statusText.textContent = "Upload complete. Device is rebooting into the new firmware...";
+            } else {
+                statusText.textContent = `Upload failed (HTTP ${xhr.status}).`;
+            }
+        };
+
+        xhr.onerror = function() {
+            // Expected if the device reboots mid-response before this fires.
+            uploadBtn.disabled = false;
+            statusText.textContent = "Upload finished or connection dropped (device may be rebooting).";
+        };
+
+        xhr.send(file);
     }
 
     // Function to retrieve the profile values when the index is updated
@@ -1826,7 +1930,7 @@
         onNavButtonClicked('trickler');
     }
     else {
-        document.addEventListener('DOMContentLoaded', function() {onNavButtonClicked('trickler');});
+        document.addEventListener('DOMContentLoaded', function() {onNavButtonClicked('trickler'); _refreshOtaFaultAlert();});
     }
 
 </script>

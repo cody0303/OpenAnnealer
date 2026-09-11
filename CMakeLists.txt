@@ -43,6 +43,44 @@ SET(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -fdata-sections -ffunction-sections -Wall")
 SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -fdata-sections -ffunction-sections -Wall")
 # SET(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections")
 
+# OTA (Milestone 3): the app is built as a TBYB-flagged, versioned image so it
+# can be flashed into either half of the A/B partition table (targets/partition_table.json)
+# and safely rolled back by the RP2350 bootrom if an update never confirms itself.
+# The TBYB flag and the version stamp are both baked in at compile time (there is no
+# post-build way to add them) - see project memory "project-ota-tbyb-findings" for why
+# this is easy to silently get wrong.
+set(PICOTOOL_EXECUTABLE "picotool" CACHE STRING "picotool executable used to build the OTA partition table")
+
+# Derive a numeric major/minor version from the nearest "annealer-vX.Y" git tag for
+# the picobin image version block. Uses its own "annealer-v" prefix, not plain "vX.Y",
+# because this repo inherited OpenTrickler's old release tags (v0.1..v1.20) from
+# before the fork - reusing that numbering would either collide outright or make an
+# OpenAnnealer pre-release look like a continuation of OpenTrickler's version history.
+# --match also makes `git describe` itself ignore those old tags when picking the
+# nearest one, not just the regex below.
+#
+# The version scheme is intentionally coarse - the picobin version item only stores
+# major/minor, no patch/build number - so only builds cut from a bumped tag actually
+# count as a newer OTA version. Untagged/dirty dev builds keep reusing the same tag's
+# major.minor, which is fine since OTA is for tagged releases, not the physical-reflash
+# dev-iteration loop used day to day.
+execute_process(
+    COMMAND git describe --tags --long --always --match "annealer-v*"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_DESCRIBE_OUTPUT
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+if(GIT_DESCRIBE_OUTPUT MATCHES "^annealer-v([0-9]+)\\.([0-9]+)-")
+    set(APP_FW_VERSION_MAJOR ${CMAKE_MATCH_1})
+    set(APP_FW_VERSION_MINOR ${CMAKE_MATCH_2})
+else()
+    message(WARNING "Could not parse an annealer-vX.Y git tag from '${GIT_DESCRIBE_OUTPUT}' - falling back to version 0.0 for the OTA image version. Untagged builds will not be treated as newer than a previous OTA update.")
+    set(APP_FW_VERSION_MAJOR 0)
+    set(APP_FW_VERSION_MINOR 0)
+endif()
+message("OTA image version (from git tag): ${APP_FW_VERSION_MAJOR}.${APP_FW_VERSION_MINOR}")
+
 
 # Application
 add_executable("${TARGET_NAME}")
@@ -107,6 +145,13 @@ target_link_libraries("${TARGET_NAME}"
     trinamic
     app_version
 
+    # OTA (Milestone 3): pico_bootrom for rom_reboot()/rom_explicit_buy()/
+    # rom_get_boot_info(); hardware_flash + pico_flash for multicore-safe erase/
+    # program of the inactive A/B partition - see src/ota_update.c.
+    pico_bootrom
+    hardware_flash
+    pico_flash
+
     # Required by cyw43 wireless module
     pico_cyw43_arch_lwip_sys_freertos
     pico_lwip_freertos
@@ -117,5 +162,49 @@ target_link_libraries("${TARGET_NAME}"
 target_link_options("${TARGET_NAME}" PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)
 # set( CMAKE_VERBOSE_MAKEFILE on )
 
+# Opt into TBYB (Try Before You Buy) so a flash-update boot into this image is
+# tentative until it calls rom_explicit_buy(), and stamp the git-tag-derived
+# version so the bootrom can tell an update apart from a downgrade. Both are
+# required for the A/B partition table to actually provide rollback safety -
+# see the comment above where APP_FW_VERSION_MAJOR/MINOR are computed.
+#
+# OFF by default: a TBYB-flagged image that's never been "bought" (confirmed via
+# rom_explicit_buy(), which only happens via the real A/B flash-update flow) is
+# refused by the bootrom on a normal boot when there's no partition table / no other
+# partition to fall back to - confirmed the hard way when a plain BOOTSEL+`picotool
+# load -x` dev-reflash (this project's everyday workflow since Milestone 1, no
+# partition table involved) left the board stuck back in BOOTSEL instead of running.
+# Only enable this (-DOTA_TBYB_BUILD=ON) when building an image that will actually go
+# through the OTA path - either uploaded via /ota_upload, or deliberately flashed into
+# a partition of an already-partitioned, OTA-converted device.
+option(OTA_TBYB_BUILD "Build with TBYB + version stamp for OTA deployment - breaks plain single-image BOOTSEL dev reflash, only use for an image going through the real A/B OTA path" OFF)
+if(OTA_TBYB_BUILD)
+    message("OTA_TBYB_BUILD=ON: building a TBYB-flagged, versioned image (${APP_FW_VERSION_MAJOR}.${APP_FW_VERSION_MINOR}) - this will NOT run from a plain BOOTSEL dev-reflash without a partition table")
+    target_compile_definitions("${TARGET_NAME}" PRIVATE
+        PICO_CRT0_IMAGE_TYPE_TBYB=1
+        PICO_CRT0_VERSION_MAJOR=${APP_FW_VERSION_MAJOR}
+        PICO_CRT0_VERSION_MINOR=${APP_FW_VERSION_MINOR}
+    )
+endif()
+
 # Generate extra outputs
 pico_add_extra_outputs("${TARGET_NAME}")
+
+# Build the flashable A/B partition table (targets/partition_table.json) alongside
+# app.uf2. This only needs to be flashed once, when first converting a device to
+# use OTA updates (picotool load -F partition_table.uf2) - re-flashing it onto a
+# device already running from a partition would erase the app currently there.
+# After that, app.uf2 itself is loaded into whichever partition is inactive
+# (picotool load -p <partition> --ignore-partitions app.uf2 during bring-up, or
+# via the OTA update path in src/ota_update.c once that lands).
+add_custom_command(
+    OUTPUT "${CMAKE_BINARY_DIR}/partition_table.uf2"
+    DEPENDS "${CMAKE_SOURCE_DIR}/targets/partition_table.json"
+    COMMAND "${PICOTOOL_EXECUTABLE}" partition create
+        "${CMAKE_SOURCE_DIR}/targets/partition_table.json"
+        "${CMAKE_BINARY_DIR}/partition_table.uf2"
+    COMMENT "Building OTA A/B partition table (partition_table.uf2)"
+)
+add_custom_target(partition_table ALL
+    DEPENDS "${CMAKE_BINARY_DIR}/partition_table.uf2"
+)

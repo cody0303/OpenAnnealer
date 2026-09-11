@@ -6,6 +6,7 @@
 #include "common.h"
 #include "eeprom.h"
 #include "version.h"
+#include "ota_update.h"
 
 extern eeprom_metadata_t metadata;
 
@@ -27,7 +28,9 @@ bool http_rest_system_control(struct fs_file *file, int num_params, char *params
     // s4 (bool): save_to_eeprom
     // s5 (bool): software_reset
     // s6 (bool): erase_eeprom
-    static char eeprom_config_json_buffer[256];
+    // s7 (str): active OTA partition ("A"/"B")
+    // s8 (str): last OTA result ("none"/"confirmed"/"rolled_back")
+    static char eeprom_config_json_buffer[288];
 
     bool save_to_eeprom_flag = false;
     bool software_reset_flag = false;
@@ -59,15 +62,19 @@ bool http_rest_system_control(struct fs_file *file, int num_params, char *params
     }
 
     // Response
-    snprintf(eeprom_config_json_buffer, 
+    char active_partition_str[2] = { ota_update_get_running_partition_letter(), '\0' };
+
+    snprintf(eeprom_config_json_buffer,
              sizeof(eeprom_config_json_buffer),
              "%s"
-             "{\"s0\":\"%s\",\"s1\":\"%s\",\"s2\":\"%s\",\"s3\":\"%s\",\"s4\":%s,\"s5\":%s,\"s6\":%s}", 
+             "{\"s0\":\"%s\",\"s1\":\"%s\",\"s2\":\"%s\",\"s3\":\"%s\",\"s4\":%s,\"s5\":%s,\"s6\":%s,\"s7\":\"%s\",\"s8\":\"%s\"}",
              http_json_header,
              metadata.unique_id, version_string, vcs_hash, build_type,
              boolean_to_string(save_to_eeprom_flag),
              boolean_to_string(erase_eeprom_flag),
-             boolean_to_string(software_reset_flag));
+             boolean_to_string(software_reset_flag),
+             active_partition_str,
+             ota_update_get_last_result_string());
 
     size_t data_length = strlen(eeprom_config_json_buffer);
     file->data = eeprom_config_json_buffer;
