@@ -13,7 +13,7 @@
 #include "mini_12864_module.h"
 #include "eeprom.h"
 #include "anneal_mode.h"
-#include "cleanup_mode.h"
+#include "anneal_manual_mode.h"
 #include "eeprom.h"
 #include "wireless.h"
 #include "system_control.h"
@@ -114,8 +114,8 @@ void menu_task(void *p){
                 case APP_STATE_ENTER_ANNEAL_MODE_FROM_REST:
                     exit_form_id = anneal_mode_menu(true);
                     break;
-                case APP_STATE_ENTER_CLEANUP_MODE:
-                    exit_form_id = cleanup_mode_menu();
+                case APP_STATE_ENTER_MANUAL_MODE:
+                    exit_form_id = anneal_manual_mode_menu();
                     break;
                 case APP_STATE_ENTER_SCALE_CALIBRATION:
                     exit_form_id = scale_calibrate_with_external_weight();

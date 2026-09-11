@@ -291,7 +291,7 @@ fds_t fds_data[] = {
     MUI_STYLE(0)
     MUI_DATA("MU", 
         MUI_10 "Start|"
-        MUI_20 "Cleanup|"
+        MUI_20 "Manual|"
         MUI_40 "Wireless|"
         MUI_30 "Settings"
         )
@@ -343,16 +343,16 @@ fds_t fds_data[] = {
     MUI_XYAT("LV", 115, 59, 1, "Next")  // APP_STATE_ENTER_ANNEAL_MODE
     MUI_XYAT("BN",14, 59, 10, "Back")
 
-    // Menu 20: Cleanup
+    // Menu 20: Manual / commissioning mode
     MUI_FORM(20)
     MUI_STYLE(1)
     MUI_LABEL(5,10, "Warning")
     MUI_XY("HL", 0,13)
     MUI_STYLE(0)
-    MUI_LABEL(5, 25, "Put pan on the scale and")
-    MUI_LABEL(5, 37, "press Next to cleanup")
+    MUI_LABEL(5, 25, "Manual jog/test mode -")
+    MUI_LABEL(5, 37, "press Next to enter")
     MUI_XYAT("BN",14, 59, 1, "Back")
-    MUI_XYAT("LV", 115, 59, 5, "Next")  // APP_STATE_ENTER_CLEANUP_MODE
+    MUI_XYAT("LV", 115, 59, 5, "Next")  // APP_STATE_ENTER_MANUAL_MODE
 
     // Menu 30: Configurations
     MUI_FORM(30)
