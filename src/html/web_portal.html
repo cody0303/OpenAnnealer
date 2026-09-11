@@ -1,15 +1,14 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html>
 
 <head>
     <meta charset="UTF-8">
-    <title>OpenTrickler Web Controller</title>
+    <title>OpenAnnealer Web Controller</title>
 
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.7.3/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0 viewport-fit=cover">
-    <link rel="icon" href="https://raw.githubusercontent.com/eamars/OpenTrickler/main/Resources/favicon.ico">
 
     <style>
         /* Exclude the pixels taken by the bottom nav bar */
@@ -22,118 +21,120 @@
 <body>
 
 <div class="container mx-auto">
-    <!-- The Trickle Control Page -->
-    <section id="sectionTrickler">
+    <!-- The Anneal Control Page -->
+    <section id="sectionAnneal">
         <div class="grid grid-cols-1 exclude-bottom-nav">
             <!-- Row 1 -->
             <div class="grid grid-cols-2">
 
-                <!-- Stat 1: Current Weight  -->
+                <!-- Stat 1: Current State -->
                 <div class="stat">
-                    <div class="stat-title">Current Weight</div>
-                    <div id="currentWeightDecimal" class="stat-value">---</div>
+                    <div class="stat-title">State</div>
+                    <div id="annealStateValue" class="stat-value">Idle</div>
                     <div id="profileName" class="stat-desc text-primary" onclick="onProfileNameClicked()">Unknown Profile</div>
-                    <div class="stat-desc">
-                        <progress id="currentWeightProgressPencentage" class="progress progress-primary" value="100" max="100"></progress>
-                    </div>
                 </div>
 
-                <!-- Stat 2: Charging Time -->
+                <!-- Stat 2: Cases / Dwell -->
                 <div class="stat text-right">
-                    <div class="stat-title">Charging Time</div>
-                    <div id="chargeTimeValue" class="stat-value">-.-- s</div>
-                    <!-- These two lines are placeholders to ensure vertical alignment -->
-                    <div class="stat-desc"> </div>
-                    <div class="stat-desc"> </div>
+                    <div class="stat-title">Cases</div>
+                    <div id="casesCompletedValue" class="stat-value">0 / 0</div>
+                    <div id="dwellTimeValue" class="stat-desc">Dwell: -.-- s</div>
                 </div>
 
             </div>
 
-            <!-- Charge Mode Control -->
-            <section id="sectionTricklerChargeMode">
+            <!-- Anneal Cycle Control -->
+            <section id="sectionAnnealCycleMode">
                 <div class="grid grid-cols-1 gap-2 px-4">
                     <!-- Row 1 -->
-                    <div class="divider">Charge Control</div>
-                    
+                    <div class="divider">Anneal Cycle</div>
+
                     <!-- Row 2 -->
                     <ul class="steps">
-                        <li id="chargeModeStateWait" class="step step-primary">Wait</li>
-                        <li id="chargeModeStateCharging" class="step">Charging</li>
-                        <li id="chargeModeStateRemoveCup" class="step">Remove Cup</li>
-                        <li id="chargeModeStateReturnCup" class="step">Return Cup</li>
+                        <li id="annealStateFeed" class="step step-primary">Feed</li>
+                        <li id="annealStateHold" class="step">Hold</li>
+                        <li id="annealStateHeat" class="step">Heat</li>
+                        <li id="annealStateDrop" class="step">Drop</li>
+                        <li id="annealStateCooldown" class="step">Cooldown</li>
                     </ul>
 
                     <!-- Row 3 -->
-                    <input id="chargeWeightInput" type="number" step="0.001" placeholder="Charge Weight" class="input input-bordered input-primary" pattern="[0-9]+([\.,][0-9]+)?"/>
+                    <input id="cycleCountInput" type="number" step="1" min="0" placeholder="Cycle Count (0 = until stopped)" class="input input-bordered input-primary"/>
 
                     <!-- Row 4 -->
                     <div class="grid grid-cols-2 gap-2">
-                        <button id="confirmButton" class="btn btn-primary btn-lg" onclick="setChargeWeight()">Start</button>
-                        <button id="stopButton" class="btn btn-warning btn-lg" onclick="enterChargeMode(false)" disabled="disabled">Stop</button>
+                        <button id="annealStartButton" class="btn btn-primary btn-lg" onclick="startAnnealCycle()">Start</button>
+                        <button id="annealStopButton" class="btn btn-warning btn-lg" onclick="stopAnnealCycle()" disabled="disabled">Stop</button>
+                    </div>
+
+                    <div id="annealFaultAlert" role="alert" class="alert alert-warning" style="display: none;">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"></path></svg>
+                        <span>Induction heater safety cutoff triggered mid-dwell - the last case's heat time was cut short.</span>
                     </div>
                 </div>
             </section>
 
-            <!-- Cleanup Mode Control -->
-            <section id="sectionTricklerCleanUpMode" style="display: none;">
+            <!-- Manual / Commissioning Mode -->
+            <section id="sectionManualMode" style="display: none;">
                 <div class="grid grid-cols-1 gap-2 px-4">
-                    <div class="grid grid-cols-1 gap-2"> 
-                        <span class="label-text">Trickler Speed (rps)</span>
-                        <input id="tricklerSpeedSlider" type="range" min="-5" max="5" value="0" class="range range-lg" step="0.1" oninput="debouncedOnTricklerSpeedUpdate()"/>
-                        <button class="btn btn-primary w-full" onclick="onStopCleanupButtonClicked()">Stop</button>
+                    <div class="divider">Manual / Commissioning</div>
+
+                    <div class="grid grid-cols-1 gap-2">
+                        <span class="label-text">Feed Speed (rps)</span>
+                        <input id="feedSpeedSlider" type="range" min="-5" max="5" value="0" class="range range-lg" step="0.1" oninput="debouncedOnFeedSpeedUpdate()"/>
+                        <button class="btn btn-neutral w-full" onclick="onStopFeedButtonClicked()">Stop Feed</button>
                     </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <button class="btn btn-neutral" onclick="onManualHolderToggle(false)">Drop Holder</button>
+                        <button class="btn btn-neutral" onclick="onManualHolderToggle(true)">Hold Holder</button>
+                    </div>
+
+                    <div role="alert" class="alert alert-warning">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"></path></svg>
+                        <span>For bench testing only. Coil cutoff is automatic (induction heater's own safety timer).</span>
+                    </div>
+                    <button class="btn btn-warning w-full" onclick="onPulseCoilClicked()">Pulse Coil</button>
                 </div>
             </section>
 
+            <!-- Case Holder Control -->
             <div class="grid grid-cols-1 gap-2 px-4">
-                <div class="divider">Scale Control</div>
-                <div class="grid grid-cols-1 gap-2">
-                    <button class="btn btn-neutral" onclick="scaleForceZero()">Scale Zero</button>
-					<div class="h-8"></div>
-					<!-- Gate Ratio Control -->
-                    <div class="grid grid-cols-1 gap-2">
-                        <div class="divider">Gate Control</div>
-                    </div>
-                      
-				</div>				
-                    
-				<div class="grid grid-cols-3 gap-2"> 
-					<button class="btn btn-neutral" onclick="servoGateSetState(2)">Gate Open</button>
-					
-					
-					<input id="servoGateRatioNumber"
-						   type="number"
-						   min="0"
-						   max="1"
-						   step="0.001"
-						   value="0.500"
-						   class="input input-bordered input-primary"
-						   readonly />
-								
-					<button class="btn btn-neutral" onclick="servoGateSetState(1)">Gate Close</button>
-				</div>
-				<div></div>
-                <div class="grid grid-cols-1 gap-2">
-                        <input id="servoGateRatioSlider"
-                               type="range"
-                               min="0"
-                               max="1000"
-                               step="1"
-                               value="500"
-                               class="range range-lg"
-                               oninput="onServoGateRatioInput(); debouncedServoGateRatioSend();" />
-				</div>
-				<div class="grid grid-cols-1 gap-2">
-					<div></div>
-					<div class="flex justify-between w-full">
-						<span class="label-text">0.000 = Open</span>
-						<span class="label-text">1.000 = Close</span>
-					</div>
-				</div>
-			</div>
-		</div>
+                <div class="divider">Case Holder Control</div>
 
-        
+                <div class="grid grid-cols-3 gap-2">
+                    <button class="btn btn-neutral" onclick="servoGateSetState(2)">Drop</button>
+
+                    <input id="servoGateRatioNumber"
+                           type="number"
+                           min="0"
+                           max="1"
+                           step="0.001"
+                           value="0.500"
+                           class="input input-bordered input-primary"
+                           readonly />
+
+                    <button class="btn btn-neutral" onclick="servoGateSetState(1)">Hold</button>
+                </div>
+                <div class="grid grid-cols-1 gap-2">
+                    <input id="servoGateRatioSlider"
+                           type="range"
+                           min="0"
+                           max="1000"
+                           step="1"
+                           value="500"
+                           class="range range-lg"
+                           oninput="onServoGateRatioInput(); debouncedServoGateRatioSend();" />
+                </div>
+                <div class="grid grid-cols-1 gap-2">
+                    <div></div>
+                    <div class="flex justify-between w-full">
+                        <span class="label-text">0.000 = Drop</span>
+                        <span class="label-text">1.000 = Hold</span>
+                    </div>
+                </div>
+            </div>
+        </div>
     </section>
 
     <!-- The Settings Page -->
@@ -152,64 +153,13 @@
                 </div>
 
                 <div class="grid grid-cols-1 px-6 gap-2">
-                    <!-- Scale Settings -->
-                    <section class="settings-page" id="settings-scale" name="Scale">
-                        <form id="scaleConfigForm" action="/rest/scale_config" class="grid grid-cols-1 gap-3">
-                            <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Scale Driver</span>
-                                <select class="select select-bordered" name="s0">
-                                    <option value="0">AND FX-i Std</option>
-                                    <option value="1">Steinberg SBS</option>
-                                    <option value="2">GNG JJB</option>
-                                    <option value="3">US Solid JFDBS</option>
-                                    <option value="4">JM Science</option>
-                                    <option value="5">Creedmoore</option>
-                                    <option value="6">Radwag PS R2</option>
-				                    <option value="7">Sartorius</option>
-                                    <option value="8">Generic Scale Driver</option>
-                                    <option value="9">Simulated Scale Driver</option>
-                                </select>
-                            </div>
-
-                            <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Serial Baudrate</span>
-                                <select class="select select-bordered" name="s1">
-                                    <option value="0">4800</option>
-                                    <option value="1">9600</option>
-                                    <option value="2">19200</option>
-                                </select>
-                            </div>
-
-                            <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Serial Format</span>
-                                <select class="select select-bordered" name="s2">
-                                    <option value="0">8 data bits, 1 stop bit, no parity bit</option>
-                                    <option value="1">7 data bits, 1 stop bit, no parity bit</option>
-                                </select>
-                            </div>
-
-                            <button class="btn btn-neutral settings-apply-btn">Apply</button>
-                        </form>
-                    </section>
-
                     <!-- Profile Settings -->
                     <section class="settings-page" id="settings-profile" name="Profiles" style="display: none;">
-                        <form id="profileConfigForm" action="/rest/profile_config" class="grid grid-cols-1 gap-3">
+        <form id="profileConfigForm" action="/rest/profile_config" class="grid grid-cols-1 gap-3">
                             <div class="grid grid-cols-1 gap-2">
                                 <div role="alert" class="alert">
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        class="h-6 w-6 shrink-0 stroke-current">
-                                        <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            stroke-width="2"
-                                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
-                                        </path>
-                                    </svg>
-                                    <a href="https://github.com/eamars/OpenTrickler/blob/main/Manual/tuning_guide.md" class="link">Powder Profile Tuning Guide</a>
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="h-6 w-6 shrink-0 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    <span>A profile is a saved anneal recipe per cartridge case type. Use Milestone 6's "Calibrate Dwell" mode to help find Dwell Time / Holder Hold Ratio for a new case type rather than guessing.</span>
                                 </div>
 
                                 <span class="label-text">Select Profile</span>
@@ -235,164 +185,73 @@
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Coarse Trickler Kp</span>
-                                <input type="number" class="input input-bordered" name="p3" step="0.001">
+                                <span class="label-text">Feed Run Time (ms)</span>
+                                <input type="number" class="input input-bordered" name="p3" step="1" min="0">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Coarse Trickler Ki</span>
+                                <span class="label-text">Feed Speed (rps)</span>
                                 <input type="number" class="input input-bordered" name="p4" step="0.001">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Coarse Trickler Kd</span>
-                                <input type="number" class="input input-bordered" name="p5" step="0.001">
+                                <span class="label-text">Pre-Heat Settle Time (ms)</span>
+                                <input type="number" class="input input-bordered" name="p5" step="1" min="0">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Coarse Trickler Min Flow Speed (rps)</span>
-                                <input type="number" class="input input-bordered" name="p6" step="0.001">
+                                <span class="label-text">Dwell Time (ms)</span>
+                                <input type="number" class="input input-bordered" name="p6" step="1" min="0">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Coarse Trickler Max Flow Speed (rps)</span>
-                                <input type="number" class="input input-bordered" name="p7" step="0.001">
+                                <span class="label-text">Post-Heat Delay (ms)</span>
+                                <input type="number" class="input input-bordered" name="p7" step="1" min="0">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Fine Trickler Kp</span>
-                                <input type="number" class="input input-bordered" name="p8" step="0.001">
-                            </div>
-
-                            <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Fine Trickler Ki</span>
-                                <input type="number" class="input input-bordered" name="p9" step="0.001">
-                            </div>
-
-                            <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Fine Trickler Kd</span>
-                                <input type="number" class="input input-bordered" name="p10" step="0.001">
-                            </div>
-
-                            <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Fine Trickler Min Flow Speed (rps)</span>
-                                <input type="number" class="input input-bordered" name="p11" step="0.001">
-                            </div>
-
-                            <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Fine Trickler Max Flow Speed (rps)</span>
-                                <input type="number" class="input input-bordered" name="p12" step="0.001">
+                                <span class="label-text">Holder Hold Ratio (0.0 - 1.0)</span>
+                                <input type="number" class="input input-bordered" name="p8" step="0.001" min="0" max="1">
                             </div>
 
                             <button class="btn btn-neutral settings-apply-btn">Apply</button>
                         </form>
                     </section>
 
-                    <!-- Charge Mode Settings -->
-                    <section class="settings-page" id="settings-charge-mode" name="Charge Mode" style="display: none;">
-                        <form id="chargeModeConfigForm" action="/rest/charge_mode_config" class="grid grid-cols-1 gap-3">
-                            <div class="grid grid-cols-2 gap-1">
-                                <span class="label-text">Neopixel LED Normal Charge Colour</span>
-                                <input type="color" class="input w-full" name="c1">
+                    <!-- Anneal Mode Settings -->
+                    <section class="settings-page" id="settings-anneal-mode" name="Anneal Mode" style="display: none;">
+                        <form id="annealModeConfigForm" action="/rest/anneal_mode_config" class="grid grid-cols-1 gap-3">
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Inter-Cycle Delay (ms)</span>
+                                <input type="number" class="input input-bordered" name="c0" step="1" min="0">
                             </div>
 
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Cycle Count (0 = until stopped)</span>
+                                <input type="number" class="input input-bordered" name="c1" step="1" min="0">
+                            </div>
+
+                            <div class="divider"></div>
+
                             <div class="grid grid-cols-2 gap-1">
-                                <span class="label-text">Neopixel LED Under Charge Colour</span>
+                                <span class="label-text">Neopixel LED Ready Colour</span>
                                 <input type="color" class="input w-full" name="c2">
                             </div>
 
                             <div class="grid grid-cols-2 gap-1">
-                                <span class="label-text">Neopixel LED Over Charge Colour</span>
+                                <span class="label-text">Neopixel LED Heating Colour</span>
                                 <input type="color" class="input w-full" name="c3">
                             </div>
 
                             <div class="grid grid-cols-2 gap-1">
-                                <span class="label-text">Neopixel LED Not Ready Colour</span>
+                                <span class="label-text">Neopixel LED Fault Colour</span>
                                 <input type="color" class="input w-full" name="c4">
-                            </div>
-
-                            <div class="divider"></div>
-
-                            <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Coarse Trickler Stop Threshold</span>
-                                <input type="number" class="input input-bordered" name="c5" step="0.001">
-                            </div>
-
-                            <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Fine Trickler Stop Threshold</span>
-                                <input type="number" class="input input-bordered" name="c6" step="0.001">
-                            </div>
-
-                            <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Set Point Accuracy (Standard Deviation)</span>
-                                <input type="number" class="input input-bordered" name="c7" step="0.001">
-                            </div>
-
-                            <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Set Point Accuracy (Mean)</span>
-                                <input type="number" class="input input-bordered" name="c8" step="0.001">
-                            </div>
-
-                            <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Decimal Places</span>
-                                <select class="select select-bordered" name="c9">
-                                    <option value="0">2</option>
-                                    <option value="1">3</option>
-                                </select>
-                            </div>
-
-                            <div class="divider"></div>
-
-                            <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Enable Pre-Charge (requires servo gate)</span>
-                                <select class="select select-bordered" name="c10">
-                                    <option value="true">Yes</option>
-                                    <option value="false">No</option>
-                                </select>
-                            </div>
-
-                            <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Pre-Charge Duration (ms)</span>
-                                <input type="number" class="input input-bordered" name="c11" step="1">
-                            </div>
-
-                            <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Pre-Charge Speed (rps)</span>
-                                <input type="number" class="input input-bordered" name="c12" step="0.001">
-                            </div>
-							<div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Mid-stage Servo Gate Position (0=open, 1=close)</span>
-                                <input type="number" class="input input-bordered" name="c13" step="0.001" min="0" max="1">
-                            </div>
-
-                            <div class="divider"></div>
-
-                            <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Coarse Stop Backoff Enable</span>
-                                <select class="select select-bordered" name="c14">
-                                    <option value="true">Yes</option>
-                                    <option value="false">No</option>
-                                </select>
-                            </div>
-
-                            <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Coarse Stop Backoff Size (turns)</span>
-                                <select class="select select-bordered" name="c15">
-                                    <option value="0.125">1/8</option>
-                                    <option value="0.25">1/4</option>
-                                    <option value="0.5">1/2</option>
-                                    <option value="1.0">1</option>
-                                </select>
-                            </div>
-
-                            <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Coarse Stop Backoff Speed (rps)</span>
-                                <input type="number" class="input input-bordered" name="c16" step="0.001" min="0">
                             </div>
 
                             <button class="btn btn-neutral settings-apply-btn">Apply</button>
                         </form>
                     </section>
+
 
                     <!-- Wireless Settings -->
                     <section class="settings-page" id="settings-wireless" name="Wireless" style="display: none;">
@@ -437,9 +296,9 @@
                         </form>
                     </section>
 
-                    <!-- Coarse Trickler Motor Settings -->
-                    <section class="settings-page" id="settings-coarse-motor" name="Coarse Trickler Motor" style="display: none;">
-                        <form id="coarseMotorConfigForm" action="/rest/coarse_motor_config" class="grid grid-cols-1 gap-3">
+                    <!-- Feeder Motor Settings -->
+                    <section class="settings-page" id="settings-feeder-motor" name="Feeder Motor" style="display: none;">
+                        <form id="feederMotorConfigForm" action="/rest/feeder_motor_config" class="grid grid-cols-1 gap-3">
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Angular Acceleration (rps/s)</span>
                                 <input type="number" class="input input-bordered" name="m0" step="0.001">
@@ -509,9 +368,9 @@
                         </form> 
                     </section>
 
-                    <!-- Fine Trickler motor Settings -->
-                    <section class="settings-page" id="settings-fine-motor" name="Fine Trickler Motor" style="display: none;">
-                        <form id="fineMotorConfigForm" action="/rest/fine_motor_config" class="grid grid-cols-1 gap-3">
+                    <!-- Spare Motor Settings -->
+                    <section class="settings-page" id="settings-spare-motor" name="Spare Motor" style="display: none;">
+                        <form id="spareMotorConfigForm" action="/rest/spare_motor_config" class="grid grid-cols-1 gap-3">
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Angular Acceleration (rps/s)</span>
                                 <input type="number" class="input input-bordered" name="m0" step="0.001">
@@ -586,7 +445,7 @@
                         <form id="neopixelLedConfigForm" action="/rest/neopixel_led_config" class="grid grid-cols-1 gap-3">
                             <div role="alert" class="alert">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                <span>The default Neopxiel LED colour can be overridden by Charge Mode Functions.</span>
+                                <span>The default Neopixel LED colour can be overridden by the anneal cycle's ready/heating/fault colours.</span>
                             </div>
 
                             <div class="grid grid-cols-2 gap-1">
@@ -682,22 +541,22 @@
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Close (Drop) Duty Cycle</span>
+                                <span class="label-text">Drop Duty Cycle</span>
                                 <input type="number" class="input input-bordered" name="c1" step="0.001">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Open (Hold) Duty Cycle</span>
+                                <span class="label-text">Hold Duty Cycle</span>
                                 <input type="number" class="input input-bordered" name="c2" step="0.001">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Close (Drop) Speed (%/s)</span>
+                                <span class="label-text">Drop Speed (%/s)</span>
                                 <input type="number" class="input input-bordered" name="c3" step="0.001">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Open (Hold) Speed (%/s)</span>
+                                <span class="label-text">Hold Speed (%/s)</span>
                                 <input type="number" class="input input-bordered" name="c4" step="0.001">
                             </div>
 
@@ -838,12 +697,11 @@
                 <label id="closeDrawerSide" for="settingsDrawer" aria-label="close sidebar" class="drawer-overlay"></label> 
                 <ul id=drawerSlide" class="menu p-2 w-60 min-h-full bg-base-200">
                     <!-- Sidebar content here -->
-                    <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-scale')">Scale</a></li>
                     <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-profile')">Profiles</a></li>
-                    <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-charge-mode')">Charge Mode</a></li>
+                    <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-anneal-mode')">Anneal Mode</a></li>
                     <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-wireless')">Wireless</a></li>
-                    <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-coarse-motor')">Coarse Motor</a></li>
-                    <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-fine-motor')">Fine Motor</a></li>
+                    <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-feeder-motor')">Feeder Motor</a></li>
+                    <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-spare-motor')">Spare Motor</a></li>
                     <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-neopixel-led')">Neopixel LED</a></li>
                     <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-mini-12864-module')">Mini 12864 Module</a></li>
                     <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-servo-gate')">Case Holder Servo</a></li>
@@ -859,11 +717,11 @@
 
 <!-- Bottom navigation bar -->
 <div class="btm-nav">
-    <button id="tricklerNavButton" class="active" onclick="onNavButtonClicked('trickler')">
+    <button id="annealNavButton" class="active" onclick="onNavButtonClicked('anneal')">
         <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
             <path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M18.796 4H5.204a1 1 0 0 0-.753 1.659l5.302 6.058a1 1 0 0 1 .247.659v4.874a.5.5 0 0 0 .2.4l3 2.25a.5.5 0 0 0 .8-.4v-7.124a1 1 0 0 1 .247-.659l5.302-6.059c.566-.646.106-1.658-.753-1.658Z"/>
-          </svg>          
-        <span class="text-sm text-gray-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-500">Trickler</span>
+          </svg>
+        <span class="text-sm text-gray-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-500">Anneal</span>
     </button>
     <button id="settingsNavButton" onclick="onNavButtonClicked('settings')">
         <svg class="w-5 h-5 mb-2 text-gray-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
@@ -871,11 +729,11 @@
         </svg>
         <span class="text-sm text-gray-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-500">Settings</span>
     </button>
-    <button id="purgeNavButton" onclick="onNavButtonClicked('purge')">
+    <button id="manualNavButton" onclick="onNavButtonClicked('manual')">
         <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
             <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12H4m12 0-4 4m4-4-4-4m3-4h2a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3h-2"/>
-          </svg>          
-        <span class="text-sm text-gray-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-500">Purge</span>
+          </svg>
+        <span class="text-sm text-gray-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-500">Manual</span>
     </button>
 </div>
 
@@ -937,36 +795,6 @@
     </div>
 </dialog>
 
-<dialog id="invalidChargeWeightDialog" class="modal">
-    <div class="modal-box">
-        <h3 class="font-bold text-lg">Error</h3>
-        <p class="py-4">Invalid charge weight</p>
-    </div>
-    <form method="dialog" class="modal-backdrop">
-        <button>close</button>
-    </form>
-</dialog>
-
-<dialog id="overThrowDialog" class="modal">
-    <div class="modal-box">
-        <h3 class="font-bold text-lg">Warning</h3>
-        <p class="py-4">Over Throw!</p>
-    </div>
-    <form method="dialog" class="modal-backdrop">
-        <button>close</button>
-    </form>
-</dialog>
-
-<dialog id="underThrowDialog" class="modal">
-    <div class="modal-box">
-        <h3 class="font-bold text-lg">Warning</h3>
-        <p class="py-4">Under Throw!</p>
-    </div>
-    <form method="dialog" class="modal-backdrop">
-        <button>close</button>
-    </form>
-</dialog>
-
 <dialog id="settingsAppliedSuccessDialog" class="modal">
     <div class="modal-box" id="settingsAppliedSuccessText">
         <h3 class="font-bold text-lg">Info</h3>
@@ -985,50 +813,21 @@
     </form>
 </dialog>
 
-<dialog id="scaleZeroedSuccessDialog" class="modal">
-    <div class="modal-box">
-        <h3 class="font-bold text-lg">Info</h3>
-        <p class="py-4">Scale Zero Successful</p>
-    </div>
-    <form method="dialog" class="modal-backdrop">
-        <button>close</button>
-    </form>
-</dialog>
-
-<dialog id="scaleZeroedFailDialog" class="modal">
-    <div class="modal-box">
-        <h3 class="font-bold text-lg">Error</h3>
-        <p class="py-4">Failed to Zero Scale</p>
-    </div>
-    <form method="dialog" class="modal-backdrop">
-        <button>close</button>
-    </form>
-</dialog>
 
 <!-- Scripts to support the webapp -->
 <script>
-    const ChargeModeState = Object.freeze({ 
+    const AnnealModeState = Object.freeze({
         EXIT: 0,
-        WAIT: 1, 
-        CHARGING: 2, 
-        REMOVE_CUP: 3, 
-        RETURN_CUP: 4, 
-    }); 
-
-    const ChargeModeEvent = Object.freeze({ 
-        NO_EVENT: 1 << 0, 
-        UNDER_CHARGE: 1 << 1, 
-        OVER_CHARGE: 1 << 2, 
+        FEED: 1,
+        HOLD: 2,
+        HEAT: 3,
+        DROP: 4,
+        COOLDOWN: 5,
     });
 
-    const ScaleAction = Object.freeze({ 
-        NO_ACTION: 0,
-        FORCE_ZERO: 1,
-    });
-
-    const CleanupModeState = Object.freeze({
-        EXIT: 0,
-        ENTER: 1,
+    const AnnealModeEvent = Object.freeze({
+        NO_EVENT: 1 << 0,
+        INDUCTION_FAULT: 1 << 1,
     });
 
     const ServoGateState = Object.freeze({
@@ -1039,118 +838,57 @@
 
     var pollSetTimeoutId;
 
-    // Set Charge Mode Set Point with REST interface
-    function setChargeWeight() {
-        // Read charge weight
-        const chargeWeight = document.getElementById("chargeWeightInput").value;
+    // Start an anneal cycle with the entered cycle count.
+    function startAnnealCycle() {
+        const cycleCount = document.getElementById("cycleCountInput").value || 0;
 
-        // If the charge weight is empty
-        if (chargeWeight == "") {
-            const errorModal = document.getElementById('invalidChargeWeightDialog');
-            errorModal.showModal();
+        const uri = `/rest/anneal_mode_state?s0=${encodeURIComponent(cycleCount)}&s2=${encodeURIComponent(AnnealModeState.FEED)}`;
 
-            return;
-        }
-
-        // Build URI
-        const uri = `/rest/charge_mode_state?s0=${encodeURIComponent(chargeWeight)}&s2=${encodeURIComponent(ChargeModeState.WAIT)}`;
-
-        // Call set charge weight REST
         fetch(uri)
         .then(response => {
-            _restartPoll();  // Start the poll immediately to update the charge status
+            _restartPoll();
         })
         .catch(error => {
-            console.error("Error setting charge weight");
+            console.error("Error starting anneal cycle");
         });
     }
 
-    function enterChargeMode(enter) {
-        var charge_mode_status_value = null;
-        if (enter) {
-            charge_mode_status_value = ChargeModeState.WAIT;
-        }
-        else {
-            charge_mode_status_value = ChargeModeState.EXIT;
-        }
+    function stopAnnealCycle() {
+        const uri = `/rest/anneal_mode_state?s2=${encodeURIComponent(AnnealModeState.EXIT)}`;
 
-        // Build URI
-        const uri = `/rest/charge_mode_state?s2=${encodeURIComponent(charge_mode_status_value)}`;
-
-        // Call set charge weight REST
         fetch(uri)
         .then(response => {
-            _restartPoll();  // Start the poll immediately to update the charge status
+            _restartPoll();
         })
         .catch(error => {
-            console.error("Error setting charge mode status");
+            console.error("Error stopping anneal cycle");
         });
     }
 
-    // Helper function to update progress widget
+    // Helper function to update the anneal-cycle steps widget
     const PRIMARY_CLASS = "step-primary";
+    const ANNEAL_STEP_IDS = ["annealStateFeed", "annealStateHold", "annealStateHeat", "annealStateDrop", "annealStateCooldown"];
 
-    function _setChargeModeStateWidget(state) {
-        const chargeModeStateWait = document.getElementById("chargeModeStateWait");
-        const chargeModeStateCharging = document.getElementById("chargeModeStateCharging");
-        const chargeModeStateRemoveCup = document.getElementById("chargeModeStateRemoveCup");
-        const chargeModeStateReturnCup = document.getElementById("chargeModeStateReturnCup");
+    function _setAnnealStateWidget(state) {
+        // FEED=1 .. COOLDOWN=5 map directly to indices 0..4; EXIT clears all steps.
+        const activeCount = (state >= AnnealModeState.FEED && state <= AnnealModeState.COOLDOWN) ? state : 0;
 
-        switch (state) {
-            case ChargeModeState.WAIT:
-                chargeModeStateWait.classList.add(PRIMARY_CLASS);
-                chargeModeStateCharging.classList.remove(PRIMARY_CLASS)
-                chargeModeStateRemoveCup.classList.remove(PRIMARY_CLASS)
-                chargeModeStateReturnCup.classList.remove(PRIMARY_CLASS)
-                break;
-            case ChargeModeState.CHARGING:
-                chargeModeStateWait.classList.add(PRIMARY_CLASS);
-                chargeModeStateCharging.classList.add(PRIMARY_CLASS)
-                chargeModeStateRemoveCup.classList.remove(PRIMARY_CLASS)
-                chargeModeStateReturnCup.classList.remove(PRIMARY_CLASS)
-                break;
-            case ChargeModeState.REMOVE_CUP:
-                chargeModeStateWait.classList.add(PRIMARY_CLASS);
-                chargeModeStateCharging.classList.add(PRIMARY_CLASS)
-                chargeModeStateRemoveCup.classList.add(PRIMARY_CLASS)
-                chargeModeStateReturnCup.classList.remove(PRIMARY_CLASS)
-                break;
-            case ChargeModeState.RETURN_CUP:
-                chargeModeStateWait.classList.add(PRIMARY_CLASS);
-                chargeModeStateCharging.classList.add(PRIMARY_CLASS)
-                chargeModeStateRemoveCup.classList.add(PRIMARY_CLASS)
-                chargeModeStateReturnCup.classList.add(PRIMARY_CLASS)
-                break;
-            case ChargeModeState.EXIT:
-                chargeModeStateWait.classList.remove(PRIMARY_CLASS);
-                chargeModeStateCharging.classList.remove(PRIMARY_CLASS)
-                chargeModeStateRemoveCup.classList.remove(PRIMARY_CLASS)
-                chargeModeStateReturnCup.classList.remove(PRIMARY_CLASS)
-                break;
-        }
-    }
-    
-    // Helper function to set the current weight widget
-    function _setCurrentWeight(weight, percentage) {
-        var currentWeightDecimal = document.getElementById("currentWeightDecimal");
-        currentWeightDecimal.innerText = String(weight);
-
-        var currentWeightProgressPencentage = document.getElementById("currentWeightProgressPencentage");
-        currentWeightProgressPencentage.value = percentage;
+        ANNEAL_STEP_IDS.forEach((id, idx) => {
+            const el = document.getElementById(id);
+            if (idx < activeCount) {
+                el.classList.add(PRIMARY_CLASS);
+            } else {
+                el.classList.remove(PRIMARY_CLASS);
+            }
+        });
     }
 
-    function _setStartStopButtonWidget(isStart) {
-        const confirmButton = document.getElementById("confirmButton");
-        const stopButton = document.getElementById("stopButton");
+    function _setStartStopButtonWidget(isRunning) {
+        const startButton = document.getElementById("annealStartButton");
+        const stopButton = document.getElementById("annealStopButton");
 
-        if (isStart) {
-            confirmButton.disabled = true;
-            stopButton.disabled = false;
-        }
-        else {
-            stopButton.disabled = true;
-            confirmButton.disabled = false;
-        }
+        startButton.disabled = isRunning;
+        stopButton.disabled = !isRunning;
     }
 
     function onProfileNameClicked() {
@@ -1168,7 +906,7 @@
             // First remove existing options
             var length = quickChangeProfileSelect.options.length;
             for(var i = 0; i < length; i += 1) {
-                quickChangeProfileSelect.remove(i);     
+                quickChangeProfileSelect.remove(i);
             }
             quickChangeProfileSelect.options.length = 0;
 
@@ -1181,7 +919,7 @@
             }
             // Select the current
             quickChangeProfileSelect.value = current_profile_idx;
-            
+
             // Show the modal
             quickChangeProfileDialog.showModal();
         })
@@ -1199,116 +937,74 @@
         .then(response => {
             return response.json();
         })
+        .then(() => {
+            _refreshProfileName();
+        })
         .catch(error => {
             console.error("Error setting profile");
         })
     }
 
-    // Function to poll charge mode status (weight, progress, etc)
-    function pollChargeModeStatus() {
-        fetch("/rest/charge_mode_state")
+    // Refreshes the displayed profile name. Called on tab entry and after a profile
+    // change - not on every poll tick, since the profile doesn't change on its own.
+    function _refreshProfileName() {
+        fetch("/rest/profile_summary")
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById("profileName").innerText = String(data["s0"][data["s1"]]);
+        })
+        .catch(() => {});
+    }
+
+    // Function to poll anneal cycle status (state, cases completed, dwell time, etc)
+    function pollAnnealModeStatus() {
+        fetch("/rest/anneal_mode_state")
         .then(response => {
             return response.json()
         })
         .then(data => {
-            // console.log(data);
-            // Parse data
-            const charge_weight_set_point = data["s0"];
-            const current_charge_weight = data["s1"];
-            const charge_mode_state = data["s2"];
-            const charge_mode_event = data["s3"];
-            const profile_name = data["s4"];
-            const charge_time_seconds = data["s5"] || "-.--";
+            const cycle_count = data["s0"];
+            const cases_completed = data["s1"];
+            const anneal_state = data["s2"];
+            const anneal_event = data["s3"];
+            const state_string = data["s4"];
+            const dwell_seconds = data["s5"] || "-.--";
 
-            var percentage = 0;
-            if (charge_weight_set_point == 0) {
-                percentage = 0;
-            }
-            else {
-                percentage = current_charge_weight / charge_weight_set_point * 100.0;
-            }
+            document.getElementById("annealStateValue").innerText = state_string;
 
-            // Update web element
-            _setCurrentWeight(current_charge_weight, percentage);
-            _setChargeModeStateWidget(charge_mode_state);
+            const casesText = (cycle_count == 0) ? `${cases_completed} / -` : `${cases_completed} / ${cycle_count}`;
+            document.getElementById("casesCompletedValue").innerText = casesText;
 
-            profileName = document.getElementById("profileName");
-            profileName.innerText = String(profile_name);
-            
-            // Find the charge time element and update its text content
-            const chargeTimeElement = document.getElementById('chargeTimeValue');
-            if (chargeTimeElement) {
-                chargeTimeElement.textContent = `${charge_time_seconds} s`;
-            }
+            document.getElementById("dwellTimeValue").textContent = `Dwell: ${dwell_seconds} s`;
 
-            if (charge_mode_state == ChargeModeState.EXIT) {
+            _setAnnealStateWidget(anneal_state);
+
+            if (anneal_state == AnnealModeState.EXIT) {
                 _setStartStopButtonWidget(false);
             }
             else {
                 _setStartStopButtonWidget(true);
             }
 
-            // Process event
-            if (charge_mode_event != ChargeModeEvent.NO_EVENT) {
-                var dialog_name = null;
-                if (charge_mode_event == ChargeModeEvent.UNDER_CHARGE) {
-                    dialog_name = "underThrowDialog";
-                }
-                else if (charge_mode_event == ChargeModeEvent.OVER_CHARGE) {
-                    dialog_name = "overThrowDialog";
-                }
-
-                // Show modal
-                const dialogModal = document.getElementById(dialog_name);
-                if (dialogModal) {
-                    dialogModal.showModal();
-                }
+            const faultAlert = document.getElementById("annealFaultAlert");
+            if (anneal_event & AnnealModeEvent.INDUCTION_FAULT) {
+                faultAlert.style.display = "flex";
             }
         })
         .catch(error => {
-            console.error("Error reading charge mode settings");
-            _setCurrentWeight("---", 0);
-            _setChargeModeStateWidget(ChargeModeState.WAIT);
+            console.error("Error reading anneal mode status");
         })
         .finally(() => {
             // Schedule the next event
             clearTimeout(pollSetTimeoutId);
-            pollSetTimeoutId = setTimeout(pollChargeModeStatus, 500);
+            pollSetTimeoutId = setTimeout(pollAnnealModeStatus, 500);
         })
     }
 
-    // Send scale force zero command
-    function scaleForceZero() {
-        const uri = `/rest/scale_action?a0=${encodeURIComponent(ScaleAction.FORCE_ZERO)}`;
-
-        // Call the scale action URI
-        fetch(uri)
-        .then(response => {
-            return response.json();
-        })
-        .then(data => {
-            // console.log(data);
-
-            var scale_action_response = data["a0"];
-
-            if (scale_action_response == ScaleAction.FORCE_ZERO) {
-                const dialogModal = document.getElementById("scaleZeroedSuccessDialog");
-                dialogModal.showModal();
-            }
-            else {
-                const dialogModal = document.getElementById("scaleZeroedFailDialog");
-                dialogModal.showModal();
-        }
-        })
-        .catch(error => {
-            console.error("Error applying force zero");
-        });
-    }
 
     function servoGateSetState(state) {
         const uri = `/rest/servo_gate_state?g0=${encodeURIComponent(state)}`;
 
-        // Call the scale action URI
         fetch(uri)
         .then(response => {
             return response.json();
@@ -1408,69 +1104,68 @@
     const debouncedServoGateRatioSendFromNumber = debounce(sendServoGateRatioFromNumber, 120);
     // Switch pages
     function onNavButtonClicked(button) {
-        const sectionTrickler = document.getElementById("sectionTrickler");
-        const sectionTricklerChargeMode = document.getElementById("sectionTricklerChargeMode");
-        const sectionTricklerCleanUpMode = document.getElementById("sectionTricklerCleanUpMode");
+        const sectionAnneal = document.getElementById("sectionAnneal");
+        const sectionAnnealCycleMode = document.getElementById("sectionAnnealCycleMode");
+        const sectionManualMode = document.getElementById("sectionManualMode");
 
         const sectionSettings = document.getElementById("sectionSettings");
 
         const settingsNavButton = document.getElementById("settingsNavButton")
-        const purgeNavButton = document.getElementById("purgeNavButton");
-        const tricklerNavButton = document.getElementById("tricklerNavButton");
+        const manualNavButton = document.getElementById("manualNavButton");
+        const annealNavButton = document.getElementById("annealNavButton");
 
         switch (button) {
-            case "trickler":
-                enterCleanUpMode(false);
+            case "anneal":
+                enterManualMode(false);
 
                 // Section control
                 sectionSettings.style.display = "none";
-                sectionTrickler.style.display = "block";
-                sectionTricklerChargeMode.style.display = "block";
-                sectionTricklerCleanUpMode.style.display = "none";
+                sectionAnneal.style.display = "block";
+                sectionAnnealCycleMode.style.display = "block";
+                sectionManualMode.style.display = "none";
 
                 // Button active control
                 settingsNavButton.classList.remove("active");
-                purgeNavButton.classList.remove("active");
-                tricklerNavButton.classList.add("active");
+                manualNavButton.classList.remove("active");
+                annealNavButton.classList.add("active");
 
                 // Restart
+                _refreshProfileName();
                 _restartPoll();
                 break;
-            case "purge":
+            case "manual":
                 sectionSettings.style.display = "none";
-                sectionTrickler.style.display = "block";
-                sectionTricklerChargeMode.style.display = "none";
-                sectionTricklerCleanUpMode.style.display = "block";
+                sectionAnneal.style.display = "block";
+                sectionAnnealCycleMode.style.display = "none";
+                sectionManualMode.style.display = "block";
 
                 // Button active control
                 settingsNavButton.classList.remove("active");
-                tricklerNavButton.classList.remove("active");
-                purgeNavButton.classList.add("active");
-                
-                // Restart
-                _restartPoll();
+                annealNavButton.classList.remove("active");
+                manualNavButton.classList.add("active");
 
-                // Exit Charge mode
-                enterChargeMode(false);
+                // Stop polling anneal cycle status and make sure any running cycle stops
+                clearTimeout(pollSetTimeoutId);
+                stopAnnealCycle();
 
-                // Enter clean up mode
-                enterCleanUpMode(true);
+                // Enter manual mode
+                enterManualMode(true);
                 break;
             case "settings":
-                sectionTrickler.style.display = "none";
+                sectionAnneal.style.display = "none";
                 sectionSettings.style.display = "block";
 
                 // Button active control
-                tricklerNavButton.classList.remove("active");
-                purgeNavButton.classList.remove("active");
+                annealNavButton.classList.remove("active");
+                manualNavButton.classList.remove("active");
                 settingsNavButton.classList.add("active");
 
                 // Remove polling event
                 clearTimeout(pollSetTimeoutId);
 
                 // Load the first settings
-                onSettingsLinkClicked("settings-scale");
-                
+                onSettingsLinkClicked("settings-profile");
+
                 break;
             default:
                 break;
@@ -1480,7 +1175,7 @@
     // Helper function to restart the poll immediately
     function _restartPoll() {
         clearTimeout(pollSetTimeoutId);
-        pollSetTimeoutId = setTimeout(pollChargeModeStatus, 0);
+        pollSetTimeoutId = setTimeout(pollAnnealModeStatus, 0);
     }
 
     // Functions show settings page
@@ -1721,7 +1416,7 @@
                 bodyText += "<li>Save all settings to EEPROM</li>";
             }
             if (formData.get("s5") == 'true') {
-                bodyText += "<li>Reboot the OpenTrickler</li>";
+                bodyText += "<li>Reboot the OpenAnnealer</li>";
             }
             if (formData.get("s6") == 'true') {
                 bodyText += "<li>Erase the EEPROM. You cannot undo this action!</li>";
@@ -1754,30 +1449,42 @@
         }
     }
 
-    // Update the trickler move speed in cleanup mode based on the slider input
-    function onTricklerSpeedUpdate() {
-        const new_speed = document.getElementById("tricklerSpeedSlider").value;
-        const uri = `/rest/cleanup_mode_state?s1=${encodeURIComponent(new_speed)}`;
+    const ManualModeState = Object.freeze({
+        EXIT: 0,
+        ENTER: 1,
+    });
+
+    // Jog the feeder motor speed in manual mode based on the slider input
+    function onFeedSpeedUpdate() {
+        const new_speed = document.getElementById("feedSpeedSlider").value;
+        const uri = `/rest/manual_mode_state?s1=${encodeURIComponent(new_speed)}`;
         fetch(uri);
     }
-    const debouncedOnTricklerSpeedUpdate = debounce(onTricklerSpeedUpdate, 20);
+    const debouncedOnFeedSpeedUpdate = debounce(onFeedSpeedUpdate, 20);
 
-    function onStopCleanupButtonClicked() {
-        document.getElementById("tricklerSpeedSlider").value = "0";
-        const uri = `/rest/cleanup_mode_state?s1=${encodeURIComponent(0)}`;
+    function onStopFeedButtonClicked() {
+        document.getElementById("feedSpeedSlider").value = "0";
+        const uri = `/rest/manual_mode_state?s1=${encodeURIComponent(0)}`;
         fetch(uri);
     }
 
-    // Enter or exit the clean up mode
-    function enterCleanUpMode(enter) {
-        var cleanup_state_value = null;
-        if (enter) {
-            cleanup_state_value = CleanupModeState.ENTER;
-        }
-        else {
-            cleanup_state_value = CleanupModeState.EXIT;
-        }
-        const uri = `/rest/cleanup_mode_state?s0=${encodeURIComponent(cleanup_state_value)}`;
+    // Enter or exit manual/commissioning mode
+    function enterManualMode(enter) {
+        const manual_state_value = enter ? ManualModeState.ENTER : ManualModeState.EXIT;
+        const uri = `/rest/manual_mode_state?s0=${encodeURIComponent(manual_state_value)}`;
+        fetch(uri);
+    }
+
+    // Toggle the case holder between hold (true) and drop (false) while in manual mode
+    function onManualHolderToggle(held) {
+        const uri = `/rest/manual_mode_state?g0=${encodeURIComponent(held)}`;
+        fetch(uri);
+    }
+
+    // Pulse the induction coil for bench testing - bounded by the coil's own
+    // max_dwell_ms safety timer regardless.
+    function onPulseCoilClicked() {
+        const uri = `/rest/manual_mode_state?h0=true`;
         fetch(uri);
     }
 
@@ -1818,13 +1525,13 @@
         const config = {};
 
         const endpoints = [
-            "/rest/scale_config",
-            "/rest/charge_mode_config",
-            "/rest/coarse_motor_config",
-            "/rest/fine_motor_config",
+            "/rest/anneal_mode_config",
+            "/rest/feeder_motor_config",
+            "/rest/spare_motor_config",
             "/rest/mini_12864_config",
             "/rest/wireless_config",
             "/rest/neopixel_led_config",
+            "/rest/induction_heater_config",
             "/rest/profile_config?pf=0",
             "/rest/profile_config?pf=1",
             "/rest/profile_config?pf=2",
@@ -1856,7 +1563,7 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = "opentrickler_"+config["unique_id"]+"_config.json";
+        a.download = "openannealer_"+config["unique_id"]+"_config.json";
         a.click();
         URL.revokeObjectURL(url);
     }
@@ -1927,10 +1634,10 @@
 
     // Start the long polling process when the page loads
     if (document.readyState != "loading") {
-        onNavButtonClicked('trickler');
+        onNavButtonClicked('anneal');
     }
     else {
-        document.addEventListener('DOMContentLoaded', function() {onNavButtonClicked('trickler'); _refreshOtaFaultAlert();});
+        document.addEventListener('DOMContentLoaded', function() {onNavButtonClicked('anneal'); _refreshOtaFaultAlert();});
     }
 
 </script>
