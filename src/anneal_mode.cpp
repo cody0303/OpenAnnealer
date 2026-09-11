@@ -223,9 +223,11 @@ static void anneal_mode_heat(void) {
 static void anneal_mode_drop(void) {
     snprintf(title_string, sizeof(title_string), "Dropping Case");
 
-    if (servo_gate.eeprom_servo_gate_config.servo_gate_enable) {
-        servo_gate_set_ratio(HOLDER_RATIO_DROP, true);
-    }
+    // Unlike OpenTrickler's optional accessory gate, the case holder servo is not
+    // optional hardware for this application - always drop, regardless of
+    // servo_gate_enable (which defaults to false and would otherwise silently skip
+    // this move every time).
+    servo_gate_set_ratio(HOLDER_RATIO_DROP, true);
 
     vTaskDelay(pdMS_TO_TICKS(anneal_mode_config.eeprom_anneal_mode_data.post_heat_delay_ms));
 

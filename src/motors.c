@@ -40,6 +40,12 @@ motor_config_t spare_motor_config;
 // check whether the motors actually came up instead of assuming they did.
 static motor_init_err_t _motor_last_init_error = MOTOR_INIT_OK;
 
+// Spare motor driver result, tracked separately: not wired up by design in this
+// build, so a comms failure here is expected and must not trigger the boot-time
+// error display - but it's still worth being able to check later (REST/menu),
+// e.g. once something is actually connected to it.
+static motor_init_err_t _spare_motor_init_error = MOTOR_INIT_OK;
+
 
 const eeprom_motor_data_t default_motor_data = {
     .motor_data_rev = 0,
@@ -609,7 +615,10 @@ motor_init_err_t motors_init(void) {
     }
 
     //
-    // Initialize spare motor at UART ADDR 1
+    // Initialize spare motor at UART ADDR 1. This motor isn't used by anything
+    // yet and isn't wired up in this build by design, so a driver comms failure
+    // here is expected, not fatal - unlike the feeder, it must never block the
+    // feeder's own RTOS control (queue/task) from being set up below.
     //
     driver_io_init(&spare_motor_config);
 
@@ -617,11 +626,15 @@ motor_init_err_t motors_init(void) {
     if (!driver_pio_init(&spare_motor_config)) {
         return MOTOR_INIT_PIO_ERR;
     }
-    
+
     // Initialize the stepper driver
     is_ok = driver_init(&spare_motor_config);
     if (!is_ok) {
-        return MOTOR_INIT_SPARE_DRV_ERR;
+        printf("Spare motor driver not responding (expected if unconnected)\n");
+        _spare_motor_init_error = MOTOR_INIT_SPARE_DRV_ERR;
+    }
+    else {
+        _spare_motor_init_error = MOTOR_INIT_OK;
     }
 
     // Initialize motor related RTOS control
@@ -649,6 +662,11 @@ motor_init_err_t motors_init(void) {
 
 motor_init_err_t get_motor_init_error(void) {
     return _motor_last_init_error;
+}
+
+
+motor_init_err_t get_spare_motor_init_error(void) {
+    return _spare_motor_init_error;
 }
 
 

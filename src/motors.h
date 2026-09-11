@@ -26,7 +26,7 @@ typedef enum {
     MOTOR_INIT_OK = 0,
     MOTOR_INIT_CFG_ERR = 2,
     MOTOR_INIT_FEEDER_DRV_ERR = 3,
-    MOTOR_INIT_SPARE_DRV_ERR = 4,
+    MOTOR_INIT_SPARE_DRV_ERR = 4,   // Tracked via get_spare_motor_init_error(), not surfaced as a boot-time error
     MOTOR_INIT_PIO_ERR = 5,
 } motor_init_err_t;
 
@@ -94,6 +94,7 @@ void motor_enable(motor_select_t selected_motor, bool enable);
 const char * get_motor_select_string(motor_select_t selected_motor);
 void handle_motor_init_error(motor_init_err_t err);
 motor_init_err_t get_motor_init_error(void);
+motor_init_err_t get_spare_motor_init_error(void);
 
 // REST interface
 bool http_rest_feeder_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]);
