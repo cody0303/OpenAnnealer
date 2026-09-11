@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 
 # Set project data
-set(PROJECT_NAME "OpenTricklerController")
+set(PROJECT_NAME "OpenAnnealerController")
 set(TARGET_NAME "app")
 
 message("CMAKE_SOURCE_DIR: ${CMAKE_SOURCE_DIR}")
@@ -18,7 +18,7 @@ include(${PICO_SDK_PATH}/pico_sdk_init.cmake)
 # Name the project
 project(${PROJECT_NAME}
         LANGUAGES C CXX ASM
-        DESCRIPTION "Firmware for OpenTrickler Controller"
+        DESCRIPTION "Firmware for OpenAnnealer Controller"
 )
 
 # Initialise the Pico SDK
