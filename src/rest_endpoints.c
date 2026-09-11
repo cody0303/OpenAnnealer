@@ -4,7 +4,6 @@
 #include "http_rest.h"
 #include "anneal_mode.h"
 #include "motors.h"
-#include "scale.h"
 #include "wireless.h"
 #include "eeprom.h"
 #include "mini_12864_module.h"
@@ -84,8 +83,6 @@ bool rest_endpoints_init(bool default_wizard) {
     rest_register_handler("/mobile", http_web_portal);
     rest_register_handler("/wizard", http_wizard);
     rest_register_handler("/404", http_404_error);
-    rest_register_handler("/rest/scale_action", http_rest_scale_action);
-    rest_register_handler("/rest/scale_config", http_rest_scale_config);
     rest_register_handler("/rest/anneal_mode_config", http_rest_anneal_mode_config);
     rest_register_handler("/rest/anneal_mode_state", http_rest_anneal_mode_state);
     rest_register_handler("/rest/manual_mode_state", http_rest_manual_mode_state);

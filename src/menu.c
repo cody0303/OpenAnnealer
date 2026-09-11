@@ -8,7 +8,6 @@
 
 #include "app.h"
 #include "configuration.h"
-#include "scale.h"
 #include "display.h"
 #include "mini_12864_module.h"
 #include "eeprom.h"
@@ -41,7 +40,6 @@ static uint8_t menu_get_parent_form_id(uint8_t form_id) {
         case 20: return 1;
 
         case 30: return 1;
-        case 31: return 30;
         case 32: return 30;
         case 33: return 32;
         case 34: return 32;
@@ -56,8 +54,6 @@ static uint8_t menu_get_parent_form_id(uint8_t form_id) {
         case 40: return 1;
         case 41: return 40;
 
-        case 51: return 31;
-        case 53: return 31;
         case 60: return 37;
         case 61: return 37;
 
@@ -123,10 +119,7 @@ void menu_task(void *p){
                 case APP_STATE_ENTER_CASE_CALIBRATION_MODE:
                     exit_form_id = anneal_calibration_mode_menu();
                     break;
-                case APP_STATE_ENTER_SCALE_CALIBRATION:
-                    exit_form_id = scale_calibrate_with_external_weight();
-                    break;
-                case APP_STATE_ENTER_EEPROM_SAVE: 
+                case APP_STATE_ENTER_EEPROM_SAVE:
                     exit_form_id = eeprom_save_all();
                     break;
                 case APP_STATE_ENTER_EEPROM_ERASE:

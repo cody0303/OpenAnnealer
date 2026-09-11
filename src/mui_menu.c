@@ -8,7 +8,6 @@
 #include "app.h"
 #include "pico/stdlib.h"
 
-#include "scale.h"
 #include "anneal_mode.h"
 #include "version.h"
 #include "common.h"
@@ -21,7 +20,6 @@
 extern uint8_t anneal_cycle_count_digits[];
 extern AppState_t exit_state;
 extern servo_gate_t servo_gate;
-extern scale_config_t scale_config;
 extern eeprom_profile_data_t profile_data;
 
 
@@ -256,12 +254,6 @@ muif_t muif_list[] = {
         // Leave
         MUIF_VARIABLE("LV", &exit_state, mui_u8g2_btn_exit_wm_fi),
 
-        // Scale driver selection
-        MUIF_VARIABLE("SD", &scale_config.persistent_config.scale_driver, mui_u8g2_u8_opt_line_wa_mud_pi),
-
-        // Baud rate selection
-        MUIF_VARIABLE("BR", &scale_config.persistent_config.scale_baudrate, mui_u8g2_u8_opt_line_wa_mud_pi),
-
         // Render version
         MUIF_RO("VE", render_version_page),
 
@@ -384,23 +376,6 @@ fds_t fds_data[] = {
     MUI_XYA("GC", 5, 49, 2) 
     MUI_XYA("GC", 5, 61, 3)
 
-    // Menu 31: Scale (main menu)
-    MUI_FORM(31)
-    MUI_STYLE(1)
-    MUI_LABEL(5,10, "Scale")
-    MUI_XY("HL", 0,13)
-
-    MUI_STYLE(0)
-    MUI_DATA("MU",
-        MUI_53 "Select Driver|"
-        MUI_51 "Calibration|"
-        MUI_30 "<-Return"  // back to view 30
-    )
-    MUI_XYA("GC", 5, 25, 0) 
-    MUI_XYA("GC", 5, 37, 1) 
-    MUI_XYA("GC", 5, 49, 2) 
-    MUI_XYA("GC", 5, 61, 3)
-    
     // Menu 32: Select Profile Page
     MUI_FORM(32)
     MUI_STYLE(1)
@@ -558,36 +533,6 @@ fds_t fds_data[] = {
     MUI_XYAT("BN",14, 59, 30, "Back")
     MUI_XYAT("LV", 115, 59, 11, "Next")  // APP_STATE_ENTER_CASE_CALIBRATION_MODE
 
-
-    // Scale calibration
-    MUI_FORM(51)
-    MUI_STYLE(1)
-    MUI_LABEL(5, 10, "Warning")
-    MUI_XY("HL", 0,13)
-
-    MUI_STYLE(0)
-    MUI_LABEL(5, 25, "Clear the scale and press")
-    MUI_LABEL(5, 37, "Next to calibrate")
-
-    MUI_STYLE(0)
-    MUI_XYAT("BN",14, 59, 31, "Back")
-    MUI_XYAT("LV", 115, 59, 6, "Next")  // APP_STATE_ENTER_SCALE_CALIBRATION
-
-    // Scale driver
-    MUI_FORM(53)
-    MUI_STYLE(1)
-    MUI_LABEL(5,10, "Select Scale Driver")
-    MUI_XY("HL", 0,13)
-
-    MUI_STYLE(0)
-    MUI_LABEL(5,25, "Driver:")
-    MUI_XYAT("SD", 50, 25, 60, "A&D FX-i Std|Steinberg SBS|G&G JJB|US Solid JFDBS|JM Science|Creedmoor|Radwag PS R2|Sartorius|Generic|Simulated")
-
-    MUI_LABEL(5,37, "Baudrate:")
-    MUI_XYAT("BR", 50, 37, 60, "4800|9600|19200")
-
-    MUI_STYLE(0)
-    MUI_XYAT("BN", 64, 59, 31, " OK ")
 
     // Save to EEPROM
     MUI_FORM(60)

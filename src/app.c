@@ -78,8 +78,7 @@ int main()
         handle_motor_init_error(motor_init_err);
     }
 
-    // Initialize the induction heater trigger (the scale isn't used by this
-    // application; its GPIO 0/1 are free for a future sensor)
+    // Initialize the induction heater trigger
     induction_heater_init();
 
     // Initialize anneal mode settings

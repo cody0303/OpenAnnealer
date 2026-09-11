@@ -41,10 +41,8 @@
 #define SPARE_MOTOR_STEP_PIN 8
 #define SPARE_MOTOR_DIR_PIN 7
 
-#define SCALE_UART uart0
-#define SCALE_UART_BAUDRATE 19200
-#define SCALE_UART_TX 0
-#define SCALE_UART_RX 1
+// GPIO 0/1 (formerly SCALE_UART) are free since the scale subsystem was removed
+// (Milestone 8) - available for a future sensor, e.g. Milestone 11's I2C temp sensor.
 
 #define EEPROM_I2C i2c1
 #define EEPROM_SDA_PIN 10

@@ -12,13 +12,11 @@ typedef enum {
     // 3 is removed
     // 4 is removed
     APP_STATE_ENTER_MANUAL_MODE = 5,
-    APP_STATE_ENTER_SCALE_CALIBRATION = 6,
+    // 6 (APP_STATE_ENTER_SCALE_CALIBRATION) is removed - scale subsystem gone (Milestone 8)
     APP_STATE_ENTER_EEPROM_SAVE = 7,
     APP_STATE_ENTER_EEPROM_ERASE = 8,
     APP_STATE_ENTER_REBOOT = 9,
     APP_STATE_ENTER_WIFI_INFO = 10,
-    // Not reusing APP_STATE_ENTER_SCALE_CALIBRATION's slot (6) yet - scale
-    // calibration is still wired up and functional until Milestone 8 removes it.
     APP_STATE_ENTER_CASE_CALIBRATION_MODE = 11,
 } AppState_t;
 

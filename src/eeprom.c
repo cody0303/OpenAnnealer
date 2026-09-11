@@ -10,7 +10,6 @@
 #include "hardware/regs/addressmap.h"
 
 #include "eeprom.h"
-#include "scale.h"
 #include "motors.h"
 #include "common.h"
 #include "wireless.h"
