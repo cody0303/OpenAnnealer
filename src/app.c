@@ -30,17 +30,35 @@
 #include "ota_update.h"
 
 
+// Boot-order tracing for the OTA_DEBUG_SERIAL build (see CMakeLists.txt) - traces
+// which init step is in progress, so if boot stalls/fails silently (as seen
+// debugging the OTA/partition-table boot issue), the last printed line pinpoints
+// where. No-ops entirely in a normal (non-debug) build.
+#if OTA_DEBUG_SERIAL
+#define BOOT_TRACE(msg) do { printf("=== BOOT: " msg " ===\n"); } while (0)
+#else
+#define BOOT_TRACE(msg) do {} while (0)
+#endif
+
 int main()
 {
-    // stdio_init_all();
+#if OTA_DEBUG_SERIAL
+    stdio_init_all();
+    sleep_ms(1500);
+#endif
+    BOOT_TRACE("main() start");
+
     // Initialize EEPROM first
     eeprom_init();
+    BOOT_TRACE("eeprom_init() done");
 
     // Initialize Neopixel RGB on the mini 12864 board
     neopixel_led_init();
+    BOOT_TRACE("neopixel_led_init() done");
 
     // Configure other functions from mini 12864 display
     mini_12864_module_init();
+    BOOT_TRACE("mini_12864_module_init() done");
 
     // Check for a pending OTA update: confirm it (after a stability delay) if we're
     // the freshly-flashed candidate, or surface a rollback fault if we're not.
@@ -48,9 +66,11 @@ int main()
     // display, and must run before wireless_init() so a rollback fault is visible
     // before any network activity starts.
     ota_update_init();
+    BOOT_TRACE("ota_update_init() done");
 
     // Initialize wireless settings
     wireless_init();
+    BOOT_TRACE("wireless_init() done");
 
     // Load config for motors
     motor_init_err_t motor_init_err = motors_init();

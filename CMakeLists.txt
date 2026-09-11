@@ -187,6 +187,20 @@ if(OTA_TBYB_BUILD)
     )
 endif()
 
+# Optional USB CDC serial console for debugging - the real app has none by default
+# (see README/system design), so this exists purely to diagnose boot issues without
+# changing normal builds. Must explicitly disable UART too, or pico-sdk links both
+# (UART is on by default project-wide) and CDC output can go missing in practice -
+# found the hard way debugging an OTA/partition boot issue where enabling USB alone
+# reported "UART stdin/stdout" in `picotool info`, not USB.
+option(OTA_DEBUG_SERIAL "Enable a USB CDC serial console on the app target for debugging (disables the default UART stdio)" OFF)
+if(OTA_DEBUG_SERIAL)
+    message("OTA_DEBUG_SERIAL=ON: enabling USB CDC stdio for debugging, disabling UART stdio")
+    pico_enable_stdio_usb("${TARGET_NAME}" 1)
+    pico_enable_stdio_uart("${TARGET_NAME}" 0)
+    target_compile_definitions("${TARGET_NAME}" PRIVATE OTA_DEBUG_SERIAL=1)
+endif()
+
 # Generate extra outputs
 pico_add_extra_outputs("${TARGET_NAME}")
 
