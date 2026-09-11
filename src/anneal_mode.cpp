@@ -18,6 +18,7 @@
 #include "eeprom.h"
 #include "neopixel_led.h"
 #include "common.h"
+#include "profile.h"
 
 
 uint8_t anneal_cycle_count_digits[] = {0, 0, 0, 0, 0};
@@ -29,14 +30,6 @@ extern servo_gate_t servo_gate;
 
 const eeprom_anneal_mode_data_t default_anneal_mode_data = {
     .anneal_mode_data_rev = 0,
-
-    .feed_run_time_ms = 1000,
-    .feed_speed_rps = 1.0f,
-
-    .pre_heat_settle_ms = 300,
-    .dwell_time_ms = 3000,
-    .post_heat_delay_ms = 500,
-    .holder_hold_ratio = HOLDER_RATIO_HOLD,
 
     .inter_cycle_delay_ms = 500,
     .cycle_count = 1,
@@ -143,8 +136,9 @@ static void anneal_mode_feed(void) {
         return;
     }
 
-    motor_set_speed(SELECT_FEEDER_MOTOR, anneal_mode_config.eeprom_anneal_mode_data.feed_speed_rps);
-    vTaskDelay(pdMS_TO_TICKS(anneal_mode_config.eeprom_anneal_mode_data.feed_run_time_ms));
+    profile_t * profile = profile_get_selected();
+    motor_set_speed(SELECT_FEEDER_MOTOR, profile->feed_speed_rps);
+    vTaskDelay(pdMS_TO_TICKS(profile->feed_run_time_ms));
     motor_set_speed(SELECT_FEEDER_MOTOR, 0);
 
     anneal_mode_config.anneal_mode_state = ANNEAL_MODE_HOLD;
@@ -160,9 +154,11 @@ static void anneal_mode_hold(void) {
         return;
     }
 
+    profile_t * profile = profile_get_selected();
+
     // Block until the holder finishes moving before starting the settle delay
-    servo_gate_set_ratio(anneal_mode_config.eeprom_anneal_mode_data.holder_hold_ratio, true);
-    vTaskDelay(pdMS_TO_TICKS(anneal_mode_config.eeprom_anneal_mode_data.pre_heat_settle_ms));
+    servo_gate_set_ratio(profile->holder_hold_ratio, true);
+    vTaskDelay(pdMS_TO_TICKS(profile->pre_heat_settle_ms));
 
     anneal_mode_config.anneal_mode_state = ANNEAL_MODE_HEAT;
 }
@@ -182,7 +178,7 @@ static void anneal_mode_heat(void) {
 
     induction_heater_enable(true);
 
-    TickType_t stop_tick = xTaskGetTickCount() + pdMS_TO_TICKS(anneal_mode_config.eeprom_anneal_mode_data.dwell_time_ms);
+    TickType_t stop_tick = xTaskGetTickCount() + pdMS_TO_TICKS(profile_get_selected()->dwell_time_ms);
     bool aborted = false;
 
     while (xTaskGetTickCount() < stop_tick) {
@@ -229,7 +225,7 @@ static void anneal_mode_drop(void) {
     // this move every time).
     servo_gate_set_ratio(HOLDER_RATIO_DROP, true);
 
-    vTaskDelay(pdMS_TO_TICKS(anneal_mode_config.eeprom_anneal_mode_data.post_heat_delay_ms));
+    vTaskDelay(pdMS_TO_TICKS(profile_get_selected()->post_heat_delay_ms));
 
     anneal_mode_config.cases_completed += 1;
 
@@ -344,54 +340,31 @@ bool anneal_mode_config_save(void) {
 
 bool http_rest_anneal_mode_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
     // Mappings:
-    // c0 (int): feed_run_time_ms
-    // c1 (float): feed_speed_rps
-    // c2 (int): pre_heat_settle_ms
-    // c3 (int): dwell_time_ms
-    // c4 (int): post_heat_delay_ms
-    // c5 (float): holder_hold_ratio
-    // c6 (int): inter_cycle_delay_ms
-    // c7 (int): cycle_count
-    // c8 (str): neopixel_ready_colour
-    // c9 (str): neopixel_heating_colour
-    // c10 (str): neopixel_fault_colour
+    // (feed/holder/dwell timing moved to /rest/profile_config - see profile.c)
+    // c0 (int): inter_cycle_delay_ms
+    // c1 (int): cycle_count
+    // c2 (str): neopixel_ready_colour
+    // c3 (str): neopixel_heating_colour
+    // c4 (str): neopixel_fault_colour
     // ee (bool): save to eeprom
 
-    static char json_buffer[384];
+    static char json_buffer[256];
     bool save_to_eeprom = false;
 
     for (int idx = 0; idx < num_params; idx += 1) {
         if (strcmp(params[idx], "c0") == 0) {
-            anneal_mode_config.eeprom_anneal_mode_data.feed_run_time_ms = strtoul(values[idx], NULL, 10);
-        }
-        else if (strcmp(params[idx], "c1") == 0) {
-            anneal_mode_config.eeprom_anneal_mode_data.feed_speed_rps = strtof(values[idx], NULL);
-        }
-        else if (strcmp(params[idx], "c2") == 0) {
-            anneal_mode_config.eeprom_anneal_mode_data.pre_heat_settle_ms = strtoul(values[idx], NULL, 10);
-        }
-        else if (strcmp(params[idx], "c3") == 0) {
-            anneal_mode_config.eeprom_anneal_mode_data.dwell_time_ms = strtoul(values[idx], NULL, 10);
-        }
-        else if (strcmp(params[idx], "c4") == 0) {
-            anneal_mode_config.eeprom_anneal_mode_data.post_heat_delay_ms = strtoul(values[idx], NULL, 10);
-        }
-        else if (strcmp(params[idx], "c5") == 0) {
-            anneal_mode_config.eeprom_anneal_mode_data.holder_hold_ratio = strtof(values[idx], NULL);
-        }
-        else if (strcmp(params[idx], "c6") == 0) {
             anneal_mode_config.eeprom_anneal_mode_data.inter_cycle_delay_ms = strtoul(values[idx], NULL, 10);
         }
-        else if (strcmp(params[idx], "c7") == 0) {
+        else if (strcmp(params[idx], "c1") == 0) {
             anneal_mode_config.eeprom_anneal_mode_data.cycle_count = strtoul(values[idx], NULL, 10);
         }
-        else if (strcmp(params[idx], "c8") == 0) {
+        else if (strcmp(params[idx], "c2") == 0) {
             anneal_mode_config.eeprom_anneal_mode_data.neopixel_ready_colour._raw_colour = hex_string_to_decimal(values[idx]);
         }
-        else if (strcmp(params[idx], "c9") == 0) {
+        else if (strcmp(params[idx], "c3") == 0) {
             anneal_mode_config.eeprom_anneal_mode_data.neopixel_heating_colour._raw_colour = hex_string_to_decimal(values[idx]);
         }
-        else if (strcmp(params[idx], "c10") == 0) {
+        else if (strcmp(params[idx], "c4") == 0) {
             anneal_mode_config.eeprom_anneal_mode_data.neopixel_fault_colour._raw_colour = hex_string_to_decimal(values[idx]);
         }
         else if (strcmp(params[idx], "ee") == 0) {
@@ -406,15 +379,8 @@ bool http_rest_anneal_mode_config(struct fs_file *file, int num_params, char *pa
     snprintf(json_buffer,
              sizeof(json_buffer),
              "%s"
-             "{\"c0\":%lu,\"c1\":%0.3f,\"c2\":%lu,\"c3\":%lu,\"c4\":%lu,\"c5\":%0.3f,\"c6\":%lu,\"c7\":%lu,"
-             "\"c8\":\"#%06lx\",\"c9\":\"#%06lx\",\"c10\":\"#%06lx\"}",
+             "{\"c0\":%lu,\"c1\":%lu,\"c2\":\"#%06lx\",\"c3\":\"#%06lx\",\"c4\":\"#%06lx\"}",
              http_json_header,
-             anneal_mode_config.eeprom_anneal_mode_data.feed_run_time_ms,
-             anneal_mode_config.eeprom_anneal_mode_data.feed_speed_rps,
-             anneal_mode_config.eeprom_anneal_mode_data.pre_heat_settle_ms,
-             anneal_mode_config.eeprom_anneal_mode_data.dwell_time_ms,
-             anneal_mode_config.eeprom_anneal_mode_data.post_heat_delay_ms,
-             anneal_mode_config.eeprom_anneal_mode_data.holder_hold_ratio,
              anneal_mode_config.eeprom_anneal_mode_data.inter_cycle_delay_ms,
              anneal_mode_config.eeprom_anneal_mode_data.cycle_count,
              anneal_mode_config.eeprom_anneal_mode_data.neopixel_ready_colour._raw_colour,

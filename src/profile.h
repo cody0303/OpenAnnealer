@@ -9,28 +9,24 @@
 #define PROFILE_NAME_MAX_LEN    16
 #define MAX_PROFILE_CNT         8
 
-#define EEPROM_PROFILE_DATA_REV             1           // 16 bit
+#define EEPROM_PROFILE_DATA_REV             2           // 16 bit - bumped: PID/flow-speed fields replaced with anneal recipe fields
 
 typedef struct
-{  
+{
     uint32_t rev;
     uint32_t compatibility;
-    
+
     char name[PROFILE_NAME_MAX_LEN];
 
-    float coarse_kp;
-    float coarse_ki;
-    float coarse_kd;
-
-    float coarse_min_flow_speed_rps;
-    float coarse_max_flow_speed_rps;
-
-    float fine_kp;
-    float fine_ki;
-    float fine_kd;
-
-    float fine_min_flow_speed_rps;
-    float fine_max_flow_speed_rps;
+    // Anneal recipe: how this case type should be fed/held/heated. dwell_time_ms and
+    // holder_hold_ratio are exactly the two values Milestone 6's calibration mode is
+    // meant to help discover and save per profile.
+    uint32_t feed_run_time_ms;   // How long to run the feeder at feed_speed_rps to advance one case
+    float feed_speed_rps;
+    uint32_t pre_heat_settle_ms; // Let the holder finish moving before enabling the coil
+    uint32_t dwell_time_ms;      // Heat time; must be <= the induction heater's max_dwell_ms
+    uint32_t post_heat_delay_ms; // Let the coil fully de-energize before dropping
+    float holder_hold_ratio;     // Servo ratio that seats this case length in the holder
 } profile_t;
 
 

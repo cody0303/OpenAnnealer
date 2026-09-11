@@ -7,73 +7,59 @@
 
 eeprom_profile_data_t profile_data;
 
-extern void swuart_calcCRC(uint8_t* datagram, uint8_t datagramLength);
+// Placeholder recipes - actual dwell_time_ms/holder_hold_ratio per case type are
+// meant to be discovered via Milestone 6's calibration mode and saved back here, not
+// guessed up front. feed_run_time_ms/feed_speed_rps/pre_heat_settle_ms/
+// post_heat_delay_ms carry over the same starting values anneal_mode used as its old
+// global defaults, since those aren't case-length dependent in the same way.
+#define DEFAULT_FEED_RUN_TIME_MS   1000
+#define DEFAULT_FEED_SPEED_RPS     1.0f
+#define DEFAULT_PRE_HEAT_SETTLE_MS 300
+#define DEFAULT_DWELL_TIME_MS      3000
+#define DEFAULT_POST_HEAT_DELAY_MS 500
+#define DEFAULT_HOLDER_HOLD_RATIO  1.0f  // HOLDER_RATIO_HOLD; servo_gate.h not included here to avoid a circular dependency
 
 const eeprom_profile_data_t default_profile_data = {
     .profile_data_rev = 0,
     .profiles[0] = {
         .compatibility = 0,
-        .name = "AR2208,gr",
-
-        .coarse_kp = 0.025f,
-        .coarse_ki = 0.0f,
-        .coarse_kd = 0.3f,
-        .coarse_min_flow_speed_rps = 0.1f,
-        .coarse_max_flow_speed_rps = 5.0f,
-
-        .fine_kp = 2.0f,
-        .fine_ki = 0.0f,
-        .fine_kd = 10.0f,
-        .fine_min_flow_speed_rps = 0.08f,
-        .fine_max_flow_speed_rps = 5.0f,
+        .name = "223 Rem",
+        .feed_run_time_ms = DEFAULT_FEED_RUN_TIME_MS,
+        .feed_speed_rps = DEFAULT_FEED_SPEED_RPS,
+        .pre_heat_settle_ms = DEFAULT_PRE_HEAT_SETTLE_MS,
+        .dwell_time_ms = DEFAULT_DWELL_TIME_MS,
+        .post_heat_delay_ms = DEFAULT_POST_HEAT_DELAY_MS,
+        .holder_hold_ratio = DEFAULT_HOLDER_HOLD_RATIO,
     },
     .profiles[1] = {
         .compatibility = 0,
-        .name = "AR2209,gr",
-
-        .coarse_kp = 0.05f,
-        .coarse_ki = 0.0f,
-        .coarse_kd = 0.3f,
-        .coarse_min_flow_speed_rps = 0.1f,
-        .coarse_max_flow_speed_rps = 8.0f,
-
-        .fine_kp = 0.8f,
-        .fine_ki = 0.0f,
-        .fine_kd = 15.0f,
-        .fine_min_flow_speed_rps = 0.08f,
-        .fine_max_flow_speed_rps = 2.0f,
+        .name = "308 Win",
+        .feed_run_time_ms = DEFAULT_FEED_RUN_TIME_MS,
+        .feed_speed_rps = DEFAULT_FEED_SPEED_RPS,
+        .pre_heat_settle_ms = DEFAULT_PRE_HEAT_SETTLE_MS,
+        .dwell_time_ms = DEFAULT_DWELL_TIME_MS,
+        .post_heat_delay_ms = DEFAULT_POST_HEAT_DELAY_MS,
+        .holder_hold_ratio = DEFAULT_HOLDER_HOLD_RATIO,
     },
     .profiles[2] = {
         .compatibility = 0,
-        .name = "8208XBR,gr",
-
-        .coarse_kp = 0.05f,
-        .coarse_ki = 0.0f,
-        .coarse_kd = 0.3f,
-        .coarse_min_flow_speed_rps = 0.1f,
-        .coarse_max_flow_speed_rps = 5.0f,
-
-        .fine_kp = 2.0f,
-        .fine_ki = 0.0f,
-        .fine_kd = 12.0f,
-        .fine_min_flow_speed_rps = 0.06f,
-        .fine_max_flow_speed_rps = 5.0f,
+        .name = "9mm Luger",
+        .feed_run_time_ms = DEFAULT_FEED_RUN_TIME_MS,
+        .feed_speed_rps = DEFAULT_FEED_SPEED_RPS,
+        .pre_heat_settle_ms = DEFAULT_PRE_HEAT_SETTLE_MS,
+        .dwell_time_ms = DEFAULT_DWELL_TIME_MS,
+        .post_heat_delay_ms = DEFAULT_POST_HEAT_DELAY_MS,
+        .holder_hold_ratio = DEFAULT_HOLDER_HOLD_RATIO,
     },
     .profiles[3] = {
         .compatibility = 0,
-        .name = "Benchmark2,gr",
-
-        .coarse_kp = 0.06f,
-        .coarse_ki = 0.0f,
-        .coarse_kd = 0.3f,
-        .coarse_min_flow_speed_rps = 0.1f,
-        .coarse_max_flow_speed_rps = 5.0f,
-
-        .fine_kp = 0.8f,
-        .fine_ki = 0.0f,
-        .fine_kd = 15.0f,
-        .fine_min_flow_speed_rps = 0.08f,
-        .fine_max_flow_speed_rps = 5.0f,
+        .name = "45 ACP",
+        .feed_run_time_ms = DEFAULT_FEED_RUN_TIME_MS,
+        .feed_speed_rps = DEFAULT_FEED_SPEED_RPS,
+        .pre_heat_settle_ms = DEFAULT_PRE_HEAT_SETTLE_MS,
+        .dwell_time_ms = DEFAULT_DWELL_TIME_MS,
+        .post_heat_delay_ms = DEFAULT_POST_HEAT_DELAY_MS,
+        .holder_hold_ratio = DEFAULT_HOLDER_HOLD_RATIO,
     },
     .profiles[4] = {
         .compatibility = 0,
@@ -136,26 +122,18 @@ profile_t * profile_select(uint8_t idx) {
 }
 
 
-void profile_update_checksum() {
-    swuart_calcCRC((uint8_t *) profile_get_selected(), sizeof(profile_t));
-}
-
 bool http_rest_profile_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
     // Mappings:
     // pf (int): profile index
     // p0 (int): rev
     // p1 (int): compatibility
     // p2 (str): name
-    // p3 (float): coarse_kp
-    // p4 (float): coarse_ki
-    // p5 (float): coarse_kd
-    // p6 (float): coarse_min_flow_speed_rps
-    // p7 (float): coarse_max_flow_speed_rps
-    // p8 (float): fine_kp
-    // p9 (float): fine_ki
-    // p10 (float): fine_kd
-    // p11 (float): fine_min_flow_speed_rps
-    // p12 (float): fine_max_flow_speed_rps
+    // p3 (int): feed_run_time_ms
+    // p4 (float): feed_speed_rps
+    // p5 (int): pre_heat_settle_ms
+    // p6 (int): dwell_time_ms
+    // p7 (int): post_heat_delay_ms
+    // p8 (float): holder_hold_ratio
     // ee (bool): save to eeprom
     static char buf[256];
 
@@ -189,34 +167,22 @@ bool http_rest_profile_config(struct fs_file *file, int num_params, char *params
                 strncpy(current_profile->name, values[idx], sizeof(current_profile->name));
             }
             else if (strcmp(params[idx], "p3") == 0) {
-                current_profile->coarse_kp = strtof(values[idx], NULL);
+                current_profile->feed_run_time_ms = strtoul(values[idx], NULL, 10);
             }
             else if (strcmp(params[idx], "p4") == 0) {
-                current_profile->coarse_ki = strtof(values[idx], NULL);
+                current_profile->feed_speed_rps = strtof(values[idx], NULL);
             }
             else if (strcmp(params[idx], "p5") == 0) {
-                current_profile->coarse_kd = strtof(values[idx], NULL);
+                current_profile->pre_heat_settle_ms = strtoul(values[idx], NULL, 10);
             }
             else if (strcmp(params[idx], "p6") == 0) {
-                current_profile->coarse_min_flow_speed_rps = strtof(values[idx], NULL);
+                current_profile->dwell_time_ms = strtoul(values[idx], NULL, 10);
             }
             else if (strcmp(params[idx], "p7") == 0) {
-                current_profile->coarse_max_flow_speed_rps = strtof(values[idx], NULL);
+                current_profile->post_heat_delay_ms = strtoul(values[idx], NULL, 10);
             }
             else if (strcmp(params[idx], "p8") == 0) {
-                current_profile->fine_kp = strtof(values[idx], NULL);
-            }
-            else if (strcmp(params[idx], "p9") == 0) {
-                current_profile->fine_ki = strtof(values[idx], NULL);
-            }
-            else if (strcmp(params[idx], "p10") == 0) {
-                current_profile->fine_kd = strtof(values[idx], NULL);
-            }
-            else if (strcmp(params[idx], "p11") == 0) {
-                current_profile->fine_min_flow_speed_rps = strtof(values[idx], NULL);
-            }
-            else if (strcmp(params[idx], "p12") == 0) {
-                current_profile->fine_max_flow_speed_rps = strtof(values[idx], NULL);
+                current_profile->holder_hold_ratio = strtof(values[idx], NULL);
             }
             else if (strcmp(params[idx], "ee") == 0) {
                 save_to_eeprom = string_to_boolean(values[idx]);
@@ -229,24 +195,20 @@ bool http_rest_profile_config(struct fs_file *file, int num_params, char *params
         }
 
         // Response
-        snprintf(buf, sizeof(buf), 
+        snprintf(buf, sizeof(buf),
                  "%s"
-                 "{\"pf\":%d,\"p0\":%ld,\"p1\":%ld,\"p2\":\"%s\",\"p3\":%0.3f,\"p4\":%0.3f,\"p5\":%0.3f,\"p6\":%0.3f,\"p7\":%0.3f,\"p8\":%0.3f,\"p9\":%0.3f,\"p10\":%0.3f,\"p11\":%0.3f,\"p12\":%0.3f}",
+                 "{\"pf\":%d,\"p0\":%ld,\"p1\":%ld,\"p2\":\"%s\",\"p3\":%lu,\"p4\":%0.3f,\"p5\":%lu,\"p6\":%lu,\"p7\":%lu,\"p8\":%0.3f}",
                  http_json_header,
-                 profile_idx, 
+                 profile_idx,
                  current_profile->rev,
                  current_profile->compatibility,
                  current_profile->name,
-                 current_profile->coarse_kp,
-                 current_profile->coarse_ki,
-                 current_profile->coarse_kd,
-                 current_profile->coarse_min_flow_speed_rps,
-                 current_profile->coarse_max_flow_speed_rps,
-                 current_profile->fine_kp,
-                 current_profile->fine_ki,
-                 current_profile->fine_kd,
-                 current_profile->fine_min_flow_speed_rps,
-                 current_profile->fine_max_flow_speed_rps);
+                 current_profile->feed_run_time_ms,
+                 current_profile->feed_speed_rps,
+                 current_profile->pre_heat_settle_ms,
+                 current_profile->dwell_time_ms,
+                 current_profile->post_heat_delay_ms,
+                 current_profile->holder_hold_ratio);
     }
 
     size_t response_len = strlen(buf);

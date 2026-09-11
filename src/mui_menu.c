@@ -100,7 +100,7 @@ uint8_t render_profile_ver_info(mui_t *ui, uint8_t msg) {
 }
 
 
-uint8_t render_profile_pid_details(mui_t *ui, uint8_t msg) {
+uint8_t render_profile_feed_details(mui_t *ui, uint8_t msg) {
     switch(msg)
     {
         case MUIF_MSG_DRAW:
@@ -109,34 +109,21 @@ uint8_t render_profile_pid_details(mui_t *ui, uint8_t msg) {
             u8g2_t *u8g2 = mui_get_U8g2(ui);
             profile_t * current_profile = profile_get_selected();
 
-            // Render Coarse
             u8g2_SetFont(u8g2, u8g2_font_profont11_tf);
+
             memset(buf, 0x0, sizeof(buf));
-            snprintf(buf, sizeof(buf), "Kp:%0.3f", current_profile->coarse_kp);
+            snprintf(buf, sizeof(buf), "Feed time:%lums", current_profile->feed_run_time_ms);
             u8g2_DrawStr(u8g2, 5, 25, buf);
 
             memset(buf, 0x0, sizeof(buf));
-            snprintf(buf, sizeof(buf), "Ki:%0.3f", current_profile->coarse_ki);
+            snprintf(buf, sizeof(buf), "Feed speed:%0.2f", current_profile->feed_speed_rps);
             u8g2_DrawStr(u8g2, 5, 35, buf);
 
             memset(buf, 0x0, sizeof(buf));
-            snprintf(buf, sizeof(buf), "Kd:%0.3f", current_profile->coarse_kd);
+            snprintf(buf, sizeof(buf), "Settle:%lums", current_profile->pre_heat_settle_ms);
             u8g2_DrawStr(u8g2, 5, 45, buf);
-
-            // Render fine
-            memset(buf, 0x0, sizeof(buf));
-            snprintf(buf, sizeof(buf), "Kp:%0.3f", current_profile->fine_kp);
-            u8g2_DrawStr(u8g2, 65, 25, buf);
-
-            memset(buf, 0x0, sizeof(buf));
-            snprintf(buf, sizeof(buf), "Ki:%0.3f", current_profile->fine_ki);
-            u8g2_DrawStr(u8g2, 65, 35, buf);
-
-            memset(buf, 0x0, sizeof(buf));
-            snprintf(buf, sizeof(buf), "Kd:%0.3f", current_profile->fine_kd);
-            u8g2_DrawStr(u8g2, 65, 45, buf);
             break;
-        }            
+        }
     }
     return 0;
 }
@@ -159,7 +146,7 @@ uint8_t render_anneal_mode_next_button(mui_t * ui, uint8_t msg) {
 }
 
 
-uint8_t render_profile_misc_details(mui_t *ui, uint8_t msg) {
+uint8_t render_profile_heat_details(mui_t *ui, uint8_t msg) {
     switch(msg)
     {
         case MUIF_MSG_DRAW:
@@ -168,18 +155,22 @@ uint8_t render_profile_misc_details(mui_t *ui, uint8_t msg) {
             u8g2_t *u8g2 = mui_get_U8g2(ui);
             profile_t * current_profile = profile_get_selected();
 
-            // Render speed
             u8g2_SetFont(u8g2, u8g2_font_profont11_tf);
+
             memset(buf, 0x0, sizeof(buf));
-            snprintf(buf, sizeof(buf), "Coarse:%0.3f,%0.3f", current_profile->coarse_min_flow_speed_rps, current_profile->coarse_max_flow_speed_rps);
+            snprintf(buf, sizeof(buf), "Dwell:%lums", current_profile->dwell_time_ms);
             u8g2_DrawStr(u8g2, 5, 25, buf);
 
             memset(buf, 0x0, sizeof(buf));
-            snprintf(buf, sizeof(buf), "Fine  :%0.3f,%0.3f", current_profile->fine_min_flow_speed_rps, current_profile->fine_max_flow_speed_rps);
+            snprintf(buf, sizeof(buf), "Post-heat:%lums", current_profile->post_heat_delay_ms);
             u8g2_DrawStr(u8g2, 5, 35, buf);
 
+            memset(buf, 0x0, sizeof(buf));
+            snprintf(buf, sizeof(buf), "Hold ratio:%0.2f", current_profile->holder_hold_ratio);
+            u8g2_DrawStr(u8g2, 5, 45, buf);
+
             break;
-        }            
+        }
     }
     return 0;
 }
@@ -275,8 +266,8 @@ muif_t muif_list[] = {
 
         // Render profile details
         MUIF_RO("P2", render_profile_ver_info),
-        MUIF_RO("P3", render_profile_pid_details),
-        MUIF_RO("P4", render_profile_misc_details)
+        MUIF_RO("P3", render_profile_feed_details),
+        MUIF_RO("P4", render_profile_heat_details)
     };
 
 const size_t muif_cnt = sizeof(muif_list) / sizeof(muif_t);

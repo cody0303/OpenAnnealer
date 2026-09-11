@@ -7,7 +7,7 @@
 #include "neopixel_led.h"
 
 
-#define EEPROM_ANNEAL_MODE_DATA_REV                     1              // 16 byte
+#define EEPROM_ANNEAL_MODE_DATA_REV                     2              // 16 byte - bumped: per-recipe fields moved to profile_t (Milestone 5)
 
 typedef enum {
     ANNEAL_MODE_EXIT = 0,
@@ -21,18 +21,10 @@ typedef enum {
 typedef struct {
     uint16_t anneal_mode_data_rev;
 
-    // Feed: how long to run the feeder motor at feed_speed_rps to advance one case
-    uint32_t feed_run_time_ms;
-    float feed_speed_rps;
-
-    // Holder / heat timing.
-    // holder_hold_ratio and dwell_time_ms are global for now; a future pass may move
-    // them to per-profile fields once case-length-specific holder positions and
-    // per-recipe dwell times (from the calibration mode) are needed.
-    uint32_t pre_heat_settle_ms;    // Let the holder finish moving before enabling the coil
-    uint32_t dwell_time_ms;         // Heat time; must be <= the induction heater's max_dwell_ms
-    uint32_t post_heat_delay_ms;    // Let the coil fully de-energize before dropping
-    float holder_hold_ratio;        // Servo ratio while holding the case in the coil
+    // Feed/holder/heat timing is per-profile now (see profile.h) - a case's feed
+    // time, dwell time, and holder hold ratio all depend on its length/alloy, which
+    // is exactly what a profile represents. Only settings that apply regardless of
+    // which case type is loaded stay here.
 
     // Cycle
     uint32_t inter_cycle_delay_ms;  // Pause between cases
