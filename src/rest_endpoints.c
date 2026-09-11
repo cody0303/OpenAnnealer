@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include "rest_endpoints.h"
 #include "http_rest.h"
-#include "charge_mode.h"
+#include "anneal_mode.h"
 #include "motors.h"
 #include "scale.h"
 #include "wireless.h"
@@ -84,12 +84,12 @@ bool rest_endpoints_init(bool default_wizard) {
     rest_register_handler("/404", http_404_error);
     rest_register_handler("/rest/scale_action", http_rest_scale_action);
     rest_register_handler("/rest/scale_config", http_rest_scale_config);
-    rest_register_handler("/rest/charge_mode_config", http_rest_charge_mode_config);
-    rest_register_handler("/rest/charge_mode_state", http_rest_charge_mode_state);
+    rest_register_handler("/rest/anneal_mode_config", http_rest_anneal_mode_config);
+    rest_register_handler("/rest/anneal_mode_state", http_rest_anneal_mode_state);
     rest_register_handler("/rest/cleanup_mode_state", http_rest_cleanup_mode_state);
     rest_register_handler("/rest/system_control", http_rest_system_control);
-    rest_register_handler("/rest/coarse_motor_config", http_rest_coarse_motor_config);
-    rest_register_handler("/rest/fine_motor_config", http_rest_fine_motor_config);
+    rest_register_handler("/rest/feeder_motor_config", http_rest_feeder_motor_config);
+    rest_register_handler("/rest/spare_motor_config", http_rest_spare_motor_config);
     rest_register_handler("/rest/button_control", http_rest_button_control);
     rest_register_handler("/rest/mini_12864_config", http_rest_mini_12864_module_config);
     rest_register_handler("/rest/wireless_config", http_rest_wireless_config);

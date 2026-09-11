@@ -9,7 +9,7 @@
 #include "pico/stdlib.h"
 
 #include "scale.h"
-#include "charge_mode.h"
+#include "anneal_mode.h"
 #include "version.h"
 #include "common.h"
 #include "profile.h"
@@ -17,9 +17,8 @@
 
 
 // External modules/varaibles
-extern uint8_t charge_weight_digits[];
+extern uint8_t anneal_cycle_count_digits[];
 extern AppState_t exit_state;
-extern charge_mode_config_t charge_mode_config;
 extern servo_gate_t servo_gate;
 extern scale_config_t scale_config;
 extern eeprom_profile_data_t profile_data;
@@ -143,18 +142,13 @@ uint8_t render_profile_pid_details(mui_t *ui, uint8_t msg) {
 }
 
 
-uint8_t render_charge_mode_next_button(mui_t * ui, uint8_t msg) {
+uint8_t render_anneal_mode_next_button(mui_t * ui, uint8_t msg) {
     switch (msg) {
         case MUIF_MSG_CURSOR_SELECT:
         case MUIF_MSG_VALUE_INCREMENT:
         case MUIF_MSG_VALUE_DECREMENT:
             mui_SaveForm(ui);
-            if (charge_mode_config.eeprom_charge_mode_data.decimal_places == DP_2) {
-                ui->arg = 11;  // goto form 11
-            }
-            else if (charge_mode_config.eeprom_charge_mode_data.decimal_places == DP_3) {
-                ui->arg = 12;  // goto form 12
-            }
+            ui->arg = 11;  // goto form 11 (cycle count entry)
             return mui_GotoFormAutoCursorPosition(ui, ui->arg);
         default:
             mui_u8g2_btn_goto_wm_fi(ui, msg);
@@ -200,20 +194,20 @@ uint8_t render_servo_gate_state_with_action(mui_t *ui, uint8_t msg) {
             uint8_t *value = (uint8_t *)muif_get_data(ui->uif);
             gate_state_t state = (gate_state_t)(*value);
 
-            float ratio = SERVO_GATE_RATIO_DISABLED;
+            float ratio = HOLDER_RATIO_DISABLED;
 
             switch (state) {
-                case GATE_OPEN:
-                    ratio = SERVO_GATE_RATIO_OPEN;
+                case HOLDER_DROP:
+                    ratio = HOLDER_RATIO_DROP;
                     break;
 
-                case GATE_CLOSE:
-                    ratio = SERVO_GATE_RATIO_CLOSED;
+                case HOLDER_HOLD:
+                    ratio = HOLDER_RATIO_HOLD;
                     break;
 
-                case GATE_DISABLED:
+                case HOLDER_DISABLED:
                 default:
-                    ratio = SERVO_GATE_RATIO_DISABLED;
+                    ratio = HOLDER_RATIO_DISABLED;
                     break;
             }
 
@@ -252,7 +246,7 @@ muif_t muif_list[] = {
         /* Goto Form Button where the width is equal to the size of the text, spaces can be used to extend the size */
         MUIF_BUTTON("BN", mui_u8g2_btn_goto_wm_fi),
 
-        MUIF_BUTTON("B1", render_charge_mode_next_button),
+        MUIF_BUTTON("B1", render_anneal_mode_next_button),
 
         // Leave
         MUIF_VARIABLE("LV", &exit_state, mui_u8g2_btn_exit_wm_fi),
@@ -270,11 +264,11 @@ muif_t muif_list[] = {
         MUIF_VARIABLE("RB",&servo_gate.gate_state, render_servo_gate_state_with_action),
 
         // input for a number between 0 to 9 //
-        MUIF_U8G2_U8_MIN_MAX("N4", &charge_weight_digits[4], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
-        MUIF_U8G2_U8_MIN_MAX("N3", &charge_weight_digits[3], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
-        MUIF_U8G2_U8_MIN_MAX("N2", &charge_weight_digits[2], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
-        MUIF_U8G2_U8_MIN_MAX("N1", &charge_weight_digits[1], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
-        MUIF_U8G2_U8_MIN_MAX("N0", &charge_weight_digits[0], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
+        MUIF_U8G2_U8_MIN_MAX("N4", &anneal_cycle_count_digits[4], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
+        MUIF_U8G2_U8_MIN_MAX("N3", &anneal_cycle_count_digits[3], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
+        MUIF_U8G2_U8_MIN_MAX("N2", &anneal_cycle_count_digits[2], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
+        MUIF_U8G2_U8_MIN_MAX("N1", &anneal_cycle_count_digits[1], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
+        MUIF_U8G2_U8_MIN_MAX("N0", &anneal_cycle_count_digits[0], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
 
         MUIF_U8G2_U16_LIST("P0", (uint16_t *) &profile_data.current_profile_idx, NULL, get_selected_profile_name, get_profile_count, mui_u8g2_u16_list_parent_wm_pi),
         MUIF_U8G2_U16_LIST("P1", (uint16_t *) &profile_data.current_profile_idx, NULL, get_selected_profile_name, get_profile_count, mui_u8g2_u16_list_child_w1_pi),
@@ -317,51 +311,22 @@ fds_t fds_data[] = {
     MUI_XYAT("BN",14, 59, 1, "Back")  // Jump to form 1
     MUI_XYA("P0", 5, 25, 33)  // Jump to form 33 (profile selection)
 
-    // Menu 11: Charge Weight (2dp)
+    // Menu 11: Cycle Count
     MUI_FORM(11)
     MUI_STYLE(1)
-    MUI_LABEL(5,10, "Select Charge Weight")
+    MUI_LABEL(5,10, "Select Cycle Count")
     MUI_XY("HL", 0,13)
 
     MUI_STYLE(3)
+    MUI_XY("N4",20, 35)
     MUI_XY("N3",36, 35)
     MUI_XY("N2",52, 35)
-    MUI_LABEL(64, 35, ".")
     MUI_XY("N1",76, 35)
     MUI_XY("N0",92, 35)
 
     MUI_STYLE(0)
-    MUI_XY("SU", 106, 35)
-
-    MUI_STYLE(0)
     MUI_XYAT("BN",115, 59, 13, "Next")
     MUI_XYAT("BN",14, 59, 10, "Back")
-
-    MUI_STYLE(3)
-    MUI_XY("N4",20, 35)
-
-    // Menu 12: Charge Weight (3dp)
-    MUI_FORM(12)
-    MUI_STYLE(1)
-    MUI_LABEL(5,10, "Select Charge Weight")
-    MUI_XY("HL", 0,13)
-
-    MUI_STYLE(3)
-    MUI_XY("N3",36, 35)
-    MUI_LABEL(48, 35, ".")
-    MUI_XY("N2",60, 35)
-    MUI_XY("N1",76, 35)
-    MUI_XY("N0",92, 35)
-
-    MUI_STYLE(0)
-    MUI_XY("SU", 106, 35)
-
-    MUI_STYLE(0)
-    MUI_XYAT("BN",115, 59, 13, "Next")
-    MUI_XYAT("BN",14, 59, 10, "Back")
-
-    MUI_STYLE(3)
-    MUI_XY("N4",20, 35)
 
     // Menu 13: Warning page
     MUI_FORM(13)
@@ -370,12 +335,12 @@ fds_t fds_data[] = {
     MUI_XY("HL", 0,13)
 
     MUI_STYLE(0)
-    MUI_LABEL(5, 25, "Put pan on the scale and")
-    MUI_LABEL(5, 37, "press Next to trickle")
+    MUI_LABEL(5, 25, "Load cases and press")
+    MUI_LABEL(5, 37, "Next to anneal")
 
     MUI_STYLE(0)
     // Put "Next" first so it is focused by default
-    MUI_XYAT("LV", 115, 59, 1, "Next")  // APP_STATE_ENTER_CHARGE_MODE
+    MUI_XYAT("LV", 115, 59, 1, "Next")  // APP_STATE_ENTER_ANNEAL_MODE
     MUI_XYAT("BN",14, 59, 10, "Back")
 
     // Menu 20: Cleanup

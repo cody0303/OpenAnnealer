@@ -10,7 +10,7 @@
 #define EEPROM_SCALE_CONFIG_BASE_ADDR           1 * 1024       // 1K
 #define EEPROM_WIRELESS_CONFIG_BASE_ADDR        2 * 1024       // 2K
 #define EEPROM_MOTOR_CONFIG_BASE_ADDR           4 * 1024       // 4K
-#define EEPROM_CHARGE_MODE_BASE_ADDR            5 * 1024       // 5K
+#define EEPROM_ANNEAL_MODE_BASE_ADDR            5 * 1024       // 5K (reused from the removed charge_mode slot; differing struct shape/rev is caught by load_config's CRC check)
 #define EEPROM_APP_CONFIG_BASE_ADDR             6 * 1024       // 6k
 #define EEPROM_NEOPIXEL_LED_CONFIG_BASE_ADDR    7 * 1024       // 7k
 #define EEPROM_MINI_12864_CONFIG_BASE_ADDR      8 * 1024       // 8k 

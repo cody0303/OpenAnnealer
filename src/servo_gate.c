@@ -29,8 +29,8 @@ const eeprom_servo_gate_config_t default_eeprom_servo_gate_config = {
 
 const char * _gate_state_string[] = {
     "Disabled",
-    "Close",
-    "Open"
+    "Hold",
+    "Drop"
 };
 const char * gate_state_to_string(gate_state_t state) {
     return _gate_state_string[state];
@@ -64,7 +64,7 @@ static void _servo_gate_set_current_state(float open_ratio) {
 
 
 void servo_gate_set_ratio(gate_ratio_t ratio, bool block_wait) {
-    float r = (ratio == SERVO_GATE_RATIO_DISABLED) ? SERVO_GATE_RATIO_DISABLED : clamp01(ratio);
+    float r = (ratio == HOLDER_RATIO_DISABLED) ? HOLDER_RATIO_DISABLED : clamp01(ratio);
     
     xSemaphoreTake(servo_gate.move_ready_semphore, 0); 
     
@@ -86,8 +86,8 @@ void servo_gate_control_task(void *p) {
         xQueueReceive(servo_gate.control_queue, &new_ratio, portMAX_DELAY);
 
         // --- DISABLE ---
-        if (new_ratio == SERVO_GATE_RATIO_DISABLED) {
-            servo_gate.gate_state = GATE_DISABLED;
+        if (new_ratio == HOLDER_RATIO_DISABLED) {
+            servo_gate.gate_state = HOLDER_DISABLED;
 
             // Do NOT modify prev_open_ratio
             xSemaphoreGive(servo_gate.move_ready_semphore);
@@ -138,9 +138,9 @@ void servo_gate_control_task(void *p) {
 
         // Update discrete state for reporting/UI
         if (new_open_ratio <= 0.0001f) {
-            servo_gate.gate_state = GATE_OPEN;
+            servo_gate.gate_state = HOLDER_DROP;
         } else if (new_open_ratio >= 0.9999f) {
-            servo_gate.gate_state = GATE_CLOSE;
+            servo_gate.gate_state = HOLDER_HOLD;
         }
 
         // Save last ratio
@@ -174,10 +174,10 @@ bool servo_gate_config_init() {
 
     // Initialize settings
     if (servo_gate.eeprom_servo_gate_config.servo_gate_enable) {
-        servo_gate.gate_state = GATE_OPEN;
+        servo_gate.gate_state = HOLDER_DROP;
     }
     else {
-        servo_gate.gate_state = GATE_DISABLED;
+        servo_gate.gate_state = HOLDER_DISABLED;
     }
 
     return is_ok;
@@ -230,12 +230,12 @@ bool http_rest_servo_gate_state(struct fs_file *file, int num_params, char *para
         if (strcmp(params[idx], "g0") == 0) {
             gate_state_t state = (gate_state_t)atoi(values[idx]);
 
-            float ratio = SERVO_GATE_RATIO_DISABLED;
+            float ratio = HOLDER_RATIO_DISABLED;
             switch (state) {
-                case GATE_OPEN:   ratio = SERVO_GATE_RATIO_OPEN; break;
-                case GATE_CLOSE:  ratio = SERVO_GATE_RATIO_CLOSED; break;
-                case GATE_DISABLED:
-                default:          ratio = SERVO_GATE_RATIO_DISABLED; break;
+                case HOLDER_DROP:     ratio = HOLDER_RATIO_DROP; break;
+                case HOLDER_HOLD:     ratio = HOLDER_RATIO_HOLD; break;
+                case HOLDER_DISABLED:
+                default:              ratio = HOLDER_RATIO_DISABLED; break;
             }
 
             servo_gate_set_ratio(ratio, false);

@@ -16,8 +16,8 @@
 // Speed: The magnitude of how fast the motor rotates, in rev/s
 
 typedef enum {
-    SELECT_COARSE_TRICKLER_MOTOR = 0,
-    SELECT_FINE_TRICKLER_MOTOR,
+    SELECT_FEEDER_MOTOR = 0,
+    SELECT_SPARE_MOTOR,
     SELECT_BOTH_MOTOR,
     NUM_OF_MOTOR_SELECT,
 } motor_select_t;
@@ -25,8 +25,8 @@ typedef enum {
 typedef enum {
     MOTOR_INIT_OK = 0,
     MOTOR_INIT_CFG_ERR = 2,
-    MOTOR_INIT_COARSE_DRV_ERR = 3,
-    MOTOR_INIT_FINE_DRV_ERR = 4,
+    MOTOR_INIT_FEEDER_DRV_ERR = 3,
+    MOTOR_INIT_SPARE_DRV_ERR = 4,
     MOTOR_INIT_PIO_ERR = 5,
 } motor_init_err_t;
 
@@ -96,8 +96,8 @@ void handle_motor_init_error(motor_init_err_t err);
 motor_init_err_t get_motor_init_error(void);
 
 // REST interface
-bool http_rest_coarse_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]);
-bool http_rest_fine_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]);
+bool http_rest_feeder_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]);
+bool http_rest_spare_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]);
 
 
 #ifdef __cplusplus

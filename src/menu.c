@@ -12,7 +12,7 @@
 #include "display.h"
 #include "mini_12864_module.h"
 #include "eeprom.h"
-#include "charge_mode.h"
+#include "anneal_mode.h"
 #include "cleanup_mode.h"
 #include "eeprom.h"
 #include "wireless.h"
@@ -35,7 +35,6 @@ static uint8_t menu_get_parent_form_id(uint8_t form_id) {
     switch (form_id) {
         case 10: return 1;
         case 11: return 10;
-        case 12: return 10;
         case 13: return 10;
 
         case 20: return 1;
@@ -109,11 +108,11 @@ void menu_task(void *p){
             uint8_t exit_form_id = 1;  // by default it goes to the main menu
             // menu is not active, leave the control to the app
             switch (exit_state) {
-                case APP_STATE_ENTER_CHARGE_MODE:
-                    exit_form_id = charge_mode_menu(false);
+                case APP_STATE_ENTER_ANNEAL_MODE:
+                    exit_form_id = anneal_mode_menu(false);
                     break;
-                case APP_STATE_ENTER_CHARGE_MODE_FROM_REST:
-                    exit_form_id = charge_mode_menu(true);
+                case APP_STATE_ENTER_ANNEAL_MODE_FROM_REST:
+                    exit_form_id = anneal_mode_menu(true);
                     break;
                 case APP_STATE_ENTER_CLEANUP_MODE:
                     exit_form_id = cleanup_mode_menu();

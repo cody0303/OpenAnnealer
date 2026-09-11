@@ -29,15 +29,17 @@
 #define MOTOR_UART_RX 5
 #define MOTOR_PIO pio0
 
-#define COARSE_MOTOR_ADDR 0
-#define COARSE_MOTOR_EN_PIN 6
-#define COARSE_MOTOR_STEP_PIN 3 
-#define COARSE_MOTOR_DIR_PIN 2
+// Feeder motor: advances cases into the holder
+#define FEEDER_MOTOR_ADDR 0
+#define FEEDER_MOTOR_EN_PIN 6
+#define FEEDER_MOTOR_STEP_PIN 3
+#define FEEDER_MOTOR_DIR_PIN 2
 
-#define FINE_MOTOR_ADDR 1
-#define FINE_MOTOR_EN_PIN 9
-#define FINE_MOTOR_STEP_PIN 8
-#define FINE_MOTOR_DIR_PIN 7
+// Spare motor: unused for now, reserved for a future case-feed enhancement
+#define SPARE_MOTOR_ADDR 1
+#define SPARE_MOTOR_EN_PIN 9
+#define SPARE_MOTOR_STEP_PIN 8
+#define SPARE_MOTOR_DIR_PIN 7
 
 #define SCALE_UART uart0
 #define SCALE_UART_BAUDRATE 19200

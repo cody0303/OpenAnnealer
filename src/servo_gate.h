@@ -11,24 +11,24 @@
 
 #define EEPROM_SERVO_GATE_CONFIG_REV                     2              // 16 byte
 
-#define SERVO_GATE_RATIO_OPEN       (0.0f)
-#define SERVO_GATE_RATIO_CLOSED     (1.0f)
-#define SERVO_GATE_RATIO_DISABLED   (-1.0f)
+#define HOLDER_RATIO_DROP       (0.0f)
+#define HOLDER_RATIO_HOLD       (1.0f)
+#define HOLDER_RATIO_DISABLED   (-1.0f)
 
 typedef float gate_ratio_t;
 
 typedef enum {
-    GATE_DISABLED = 0,
-    GATE_CLOSE,
-    GATE_OPEN,
+    HOLDER_DISABLED = 0,
+    HOLDER_HOLD,
+    HOLDER_DROP,
 } gate_state_t;
 
 /**
  * Control queue payload (ratio-only)
  *
  * Ratio convention:
- *   0.0  = OPEN
- *   1.0  = CLOSED
+ *   0.0  = DROP (case falls clear)
+ *   1.0  = HOLD (case held up in the coil)
  *  -1.0  = DISABLED
  *
  * Any value between 0.0 and 1.0 is proportional.
@@ -53,7 +53,7 @@ typedef struct {
 typedef struct {
     eeprom_servo_gate_config_t eeprom_servo_gate_config;
     gate_state_t gate_state;
-    gate_ratio_t gate_ratio;  // 0.0 = OPEN, 1.0 = CLOSED, -1.0 = DISABLED
+    gate_ratio_t gate_ratio;  // 0.0 = DROP, 1.0 = HOLD, -1.0 = DISABLED
     // RTOS control
     TaskHandle_t control_task_handler;
     QueueHandle_t control_queue;

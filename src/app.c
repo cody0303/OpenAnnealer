@@ -18,7 +18,7 @@
 #include "motors.h"
 #include "eeprom.h"
 #include "display.h"
-#include "charge_mode.h"
+#include "anneal_mode.h"
 #include "rest_endpoints.h"
 #include "wireless.h"
 #include "neopixel_led.h"
@@ -50,12 +50,12 @@ int main()
         handle_motor_init_error(motor_init_err);
     }
 
-    // Initialize the induction heater trigger (occupies the GPIO the scale UART
-    // used to use; the scale is not used by this application)
+    // Initialize the induction heater trigger (the scale isn't used by this
+    // application; its GPIO 0/1 are free for a future sensor)
     induction_heater_init();
 
-    // Initialize charge mode settings
-    charge_mode_config_init();
+    // Initialize anneal mode settings
+    anneal_mode_config_init();
 
     // Initialize profile data
     profile_data_init();

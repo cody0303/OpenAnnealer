@@ -33,8 +33,8 @@ typedef struct {
 
 
 // Configurations
-motor_config_t coarse_trickler_motor_config;
-motor_config_t fine_trickler_motor_config;
+motor_config_t feeder_motor_config;
+motor_config_t spare_motor_config;
 
 // Set by handle_motor_init_error(); lets other code (menu, REST, future anneal_mode)
 // check whether the motors actually came up instead of assuming they did.
@@ -43,7 +43,7 @@ static motor_init_err_t _motor_last_init_error = MOTOR_INIT_OK;
 
 const eeprom_motor_data_t default_motor_data = {
     .motor_data_rev = 0,
-    // Motor 0 is coarse trickler
+    // Motor 0 is the case feeder
     .motor_data[0] = {
         .full_steps_per_rotation = 200,     // 200: 1.8 deg stepper, 400: 0.9 deg stepper
         .current_ma = 800,                  // 800 mA peak current
@@ -52,12 +52,13 @@ const eeprom_motor_data_t default_motor_data = {
         .r_sense = 110,                     // Default sensing resistor (110ohm is used for stanard TMC2209 modules)
 
         .angular_acceleration = 50,         // In rev/s^2
-        .min_speed_rps = 0.08,              // Minimum speed for powder to drop, can be overridden by the profile
-        .gear_ratio = 1.25f,                // 40:32 gear ratio for coarse trickler motor
+        .min_speed_rps = 0.08,              // Minimum feed speed, can be overridden by the profile
+        .gear_ratio = 1.25f,                // Feeder motor gear ratio
 
         .inverted_direction = false,        // Invert the rotation direction if set to true
         .inverted_enable = false,           // Invert the enable flag if set to true
     },
+    // Motor 1 is unused for now (reserved for a future case-feed enhancement)
     .motor_data[1] = {
         .full_steps_per_rotation = 200,     // 200: 1.8 deg stepper, 400: 0.9 deg stepper
         .current_ma = 800,                  // 800 mA peak current
@@ -66,8 +67,8 @@ const eeprom_motor_data_t default_motor_data = {
         .r_sense = 110,                     // Default sensing resistor (110ohm is used for stanard TMC2209 modules)
 
         .angular_acceleration = 50,         // In rev/s^2
-        .min_speed_rps = 0.01,              // Minimum speed for powder to drop, can be overridden by the profile
-        .gear_ratio = 1.818f,               // Fine trickler gear ratio
+        .min_speed_rps = 0.01,
+        .gear_ratio = 1.818f,               // Spare motor gear ratio
 
         .inverted_direction = false,        // Invert the rotation direction if set to true
         .inverted_enable = false,           // Invert the enable flag if set to true
@@ -355,8 +356,8 @@ bool driver_pio_init(motor_config_t * motor_config) {
 bool motor_config_init(void) {
     bool is_ok = true;
 
-    memset(&coarse_trickler_motor_config, 0x0, sizeof(motor_config_t));
-    memset(&fine_trickler_motor_config, 0x0, sizeof(motor_config_t));
+    memset(&feeder_motor_config, 0x0, sizeof(motor_config_t));
+    memset(&spare_motor_config, 0x0, sizeof(motor_config_t));
 
     // Read motor config from EEPROM
     eeprom_motor_data_t eeprom_motor_data;
@@ -368,12 +369,12 @@ bool motor_config_init(void) {
     }
     
     // Copy the initialized data back to the stack
-    memcpy(&coarse_trickler_motor_config.persistent_config, &eeprom_motor_data.motor_data[0], sizeof(motor_persistent_config_t));
-    memcpy(&fine_trickler_motor_config.persistent_config, &eeprom_motor_data.motor_data[1], sizeof(motor_persistent_config_t));
+    memcpy(&feeder_motor_config.persistent_config, &eeprom_motor_data.motor_data[0], sizeof(motor_persistent_config_t));
+    memcpy(&spare_motor_config.persistent_config, &eeprom_motor_data.motor_data[1], sizeof(motor_persistent_config_t));
 
     // Set initial direction
-    coarse_trickler_motor_config.step_direction = coarse_trickler_motor_config.persistent_config.inverted_direction ? true : false;
-    fine_trickler_motor_config.step_direction = fine_trickler_motor_config.persistent_config.inverted_direction ? true : false;
+    feeder_motor_config.step_direction = feeder_motor_config.persistent_config.inverted_direction ? true : false;
+    spare_motor_config.step_direction = spare_motor_config.persistent_config.inverted_direction ? true : false;
 
     // Register to eeprom save all
     eeprom_register_handler(motor_config_save);
@@ -390,8 +391,8 @@ bool motor_config_save() {
     eeprom_motor_data.motor_data_rev = 0;  // We don't use data rev anymore
 
     // Copy the live data to the EEPROM structure
-    memcpy(&eeprom_motor_data.motor_data[0], &coarse_trickler_motor_config.persistent_config, sizeof(motor_persistent_config_t));
-    memcpy(&eeprom_motor_data.motor_data[1], &fine_trickler_motor_config.persistent_config, sizeof(motor_persistent_config_t));
+    memcpy(&eeprom_motor_data.motor_data[0], &feeder_motor_config.persistent_config, sizeof(motor_persistent_config_t));
+    memcpy(&eeprom_motor_data.motor_data[1], &spare_motor_config.persistent_config, sizeof(motor_persistent_config_t));
 
     is_ok = save_config(EEPROM_MOTOR_CONFIG_BASE_ADDR, &eeprom_motor_data, sizeof(eeprom_motor_data_t));
 
@@ -478,25 +479,25 @@ void stepper_speed_control_task(void * p) {
 
 
 void motor_set_speed(motor_select_t selected_motor, float new_velocity) {
-    if (selected_motor == SELECT_COARSE_TRICKLER_MOTOR || selected_motor == SELECT_BOTH_MOTOR) {
-        if (coarse_trickler_motor_config.stepper_speed_control_queue) {
-            xQueueSend(coarse_trickler_motor_config.stepper_speed_control_queue, &new_velocity, portMAX_DELAY);
+    if (selected_motor == SELECT_FEEDER_MOTOR || selected_motor == SELECT_BOTH_MOTOR) {
+        if (feeder_motor_config.stepper_speed_control_queue) {
+            xQueueSend(feeder_motor_config.stepper_speed_control_queue, &new_velocity, portMAX_DELAY);
         }
     }
 
-    if (selected_motor == SELECT_FINE_TRICKLER_MOTOR || selected_motor == SELECT_BOTH_MOTOR) {
-        if (fine_trickler_motor_config.stepper_speed_control_queue) {
-            xQueueSend(fine_trickler_motor_config.stepper_speed_control_queue, &new_velocity, portMAX_DELAY);
+    if (selected_motor == SELECT_SPARE_MOTOR || selected_motor == SELECT_BOTH_MOTOR) {
+        if (spare_motor_config.stepper_speed_control_queue) {
+            xQueueSend(spare_motor_config.stepper_speed_control_queue, &new_velocity, portMAX_DELAY);
         }
     }
 }
 
 
 void motor_enable(motor_select_t selected_motor, bool enable) {
-    if (selected_motor == SELECT_COARSE_TRICKLER_MOTOR || selected_motor == SELECT_BOTH_MOTOR) {
-        bool en_signal = coarse_trickler_motor_config.persistent_config.inverted_enable ? enable : !enable;
+    if (selected_motor == SELECT_FEEDER_MOTOR || selected_motor == SELECT_BOTH_MOTOR) {
+        bool en_signal = feeder_motor_config.persistent_config.inverted_enable ? enable : !enable;
 
-        gpio_put(coarse_trickler_motor_config.en_pin, en_signal);
+        gpio_put(feeder_motor_config.en_pin, en_signal);
 
         // If disabled, we shall also disable the stepper signal
         if (!enable) {
@@ -504,10 +505,10 @@ void motor_enable(motor_select_t selected_motor, bool enable) {
         }
     }
 
-    if (selected_motor == SELECT_FINE_TRICKLER_MOTOR || selected_motor == SELECT_BOTH_MOTOR) {
-        bool en_signal = fine_trickler_motor_config.persistent_config.inverted_enable ? enable : !enable;
+    if (selected_motor == SELECT_SPARE_MOTOR || selected_motor == SELECT_BOTH_MOTOR) {
+        bool en_signal = spare_motor_config.persistent_config.inverted_enable ? enable : !enable;
 
-        gpio_put(fine_trickler_motor_config.en_pin, en_signal);
+        gpio_put(spare_motor_config.en_pin, en_signal);
 
         // If disabled, we shall also disable the stepper signal
         if (!enable) {
@@ -521,11 +522,11 @@ uint16_t get_motor_max_speed(motor_select_t selected_motor) {
     motor_config_t * motor_config = NULL;
     switch (selected_motor)
     {
-    case SELECT_COARSE_TRICKLER_MOTOR:
-        motor_config = &coarse_trickler_motor_config;
+    case SELECT_FEEDER_MOTOR:
+        motor_config = &feeder_motor_config;
         break;
-    case SELECT_FINE_TRICKLER_MOTOR:
-        motor_config = &fine_trickler_motor_config;
+    case SELECT_SPARE_MOTOR:
+        motor_config = &spare_motor_config;
         break;
     
     default:
@@ -545,11 +546,11 @@ float get_motor_min_speed(motor_select_t selected_motor) {
     motor_config_t * motor_config = NULL;
     switch (selected_motor)
     {
-    case SELECT_COARSE_TRICKLER_MOTOR:
-        motor_config = &coarse_trickler_motor_config;
+    case SELECT_FEEDER_MOTOR:
+        motor_config = &feeder_motor_config;
         break;
-    case SELECT_FINE_TRICKLER_MOTOR:
-        motor_config = &fine_trickler_motor_config;
+    case SELECT_SPARE_MOTOR:
+        motor_config = &spare_motor_config;
         break;
     
     default:
@@ -574,15 +575,15 @@ motor_init_err_t motors_init(void) {
     }
 
     // Assume the `motor_config_init` is already called
-    coarse_trickler_motor_config.dir_pin = COARSE_MOTOR_DIR_PIN;
-    coarse_trickler_motor_config.en_pin = COARSE_MOTOR_EN_PIN;
-    coarse_trickler_motor_config.step_pin = COARSE_MOTOR_STEP_PIN;
-    coarse_trickler_motor_config.uart_addr = COARSE_MOTOR_ADDR;
+    feeder_motor_config.dir_pin = FEEDER_MOTOR_DIR_PIN;
+    feeder_motor_config.en_pin = FEEDER_MOTOR_EN_PIN;
+    feeder_motor_config.step_pin = FEEDER_MOTOR_STEP_PIN;
+    feeder_motor_config.uart_addr = FEEDER_MOTOR_ADDR;
 
-    fine_trickler_motor_config.dir_pin = FINE_MOTOR_DIR_PIN;
-    fine_trickler_motor_config.en_pin = FINE_MOTOR_EN_PIN;
-    fine_trickler_motor_config.step_pin = FINE_MOTOR_STEP_PIN;
-    fine_trickler_motor_config.uart_addr = FINE_MOTOR_ADDR;
+    spare_motor_config.dir_pin = SPARE_MOTOR_DIR_PIN;
+    spare_motor_config.en_pin = SPARE_MOTOR_EN_PIN;
+    spare_motor_config.step_pin = SPARE_MOTOR_STEP_PIN;
+    spare_motor_config.uart_addr = SPARE_MOTOR_ADDR;
 
     // TMC driver doesn't care about the baud rate the host is using
     uart_init(MOTOR_UART, 250000);
@@ -591,56 +592,56 @@ motor_init_err_t motors_init(void) {
 
     _enable_uart_rx(MOTOR_UART, false);
 
-    // 
-    // Enable coarse trickler motor at UART ADDR 0
-    // 
-    driver_io_init(&coarse_trickler_motor_config);
+    //
+    // Enable feeder motor at UART ADDR 0
+    //
+    driver_io_init(&feeder_motor_config);
 
     // Allocate PIO to the stepper
-    if (!driver_pio_init(&coarse_trickler_motor_config)) {
+    if (!driver_pio_init(&feeder_motor_config)) {
         return MOTOR_INIT_PIO_ERR;
     }
 
     // Initialize the stepper driver 
-    is_ok = driver_init(&coarse_trickler_motor_config);
+    is_ok = driver_init(&feeder_motor_config);
     if (!is_ok) {
-        return MOTOR_INIT_COARSE_DRV_ERR;
+        return MOTOR_INIT_FEEDER_DRV_ERR;
     }
 
-    // 
-    // Initialize fine trickler motor at UART ADDR 1
-    // 
-    driver_io_init(&fine_trickler_motor_config);
+    //
+    // Initialize spare motor at UART ADDR 1
+    //
+    driver_io_init(&spare_motor_config);
 
     // Allocate PIO to the stepper
-    if (!driver_pio_init(&fine_trickler_motor_config)) {
+    if (!driver_pio_init(&spare_motor_config)) {
         return MOTOR_INIT_PIO_ERR;
     }
     
     // Initialize the stepper driver
-    is_ok = driver_init(&fine_trickler_motor_config);
+    is_ok = driver_init(&spare_motor_config);
     if (!is_ok) {
-        return MOTOR_INIT_FINE_DRV_ERR;
+        return MOTOR_INIT_SPARE_DRV_ERR;
     }
 
     // Initialize motor related RTOS control
-    coarse_trickler_motor_config.stepper_speed_control_queue = xQueueCreate(2, sizeof(stepper_speed_control_t));
-    fine_trickler_motor_config.stepper_speed_control_queue = xQueueCreate(2, sizeof(stepper_speed_control_t));
+    feeder_motor_config.stepper_speed_control_queue = xQueueCreate(2, sizeof(stepper_speed_control_t));
+    spare_motor_config.stepper_speed_control_queue = xQueueCreate(2, sizeof(stepper_speed_control_t));
 
     // Create one task for each stepper controller
-    xTaskCreate(stepper_speed_control_task, 
-                "Coarse Trickler", 
-                configMINIMAL_STACK_SIZE, 
-                (void *) &coarse_trickler_motor_config, 
-                9,  // Coarse trickler at higher priority to response faster to stop
-                &coarse_trickler_motor_config.stepper_speed_control_task_handler);
+    xTaskCreate(stepper_speed_control_task,
+                "Feeder Motor",
+                configMINIMAL_STACK_SIZE,
+                (void *) &feeder_motor_config,
+                9,  // Feeder motor at higher priority to respond faster to stop
+                &feeder_motor_config.stepper_speed_control_task_handler);
 
-    xTaskCreate(stepper_speed_control_task, 
-                "Fine Trickler", 
-                configMINIMAL_STACK_SIZE, 
-                (void *) &fine_trickler_motor_config, 
-                8, 
-                &fine_trickler_motor_config.stepper_speed_control_task_handler);
+    xTaskCreate(stepper_speed_control_task,
+                "Spare Motor",
+                configMINIMAL_STACK_SIZE,
+                (void *) &spare_motor_config,
+                8,
+                &spare_motor_config.stepper_speed_control_task_handler);
 
     return MOTOR_INIT_OK;
 }
@@ -652,11 +653,11 @@ motor_init_err_t get_motor_init_error(void) {
 
 
 const char * get_motor_select_string(motor_select_t selected_motor) {
-    if (selected_motor == SELECT_COARSE_TRICKLER_MOTOR) {
-        return "Coarse";
+    if (selected_motor == SELECT_FEEDER_MOTOR) {
+        return "Feeder";
     }
-    else if (selected_motor == SELECT_FINE_TRICKLER_MOTOR) {
-        return "Fine";
+    else if (selected_motor == SELECT_SPARE_MOTOR) {
+        return "Spare";
     }
     else if (selected_motor == SELECT_BOTH_MOTOR) {
         return "Both";
@@ -686,11 +687,11 @@ void handle_motor_init_error(motor_init_err_t err) {
         case MOTOR_INIT_CFG_ERR:
             error_string = "CFG ERR";
             break;
-        case MOTOR_INIT_COARSE_DRV_ERR:
-            error_string = "COARSE DRV ERR";
+        case MOTOR_INIT_FEEDER_DRV_ERR:
+            error_string = "FEEDER DRV ERR";
             break;
-        case MOTOR_INIT_FINE_DRV_ERR:
-            error_string = "FINE DRV ERR";
+        case MOTOR_INIT_SPARE_DRV_ERR:
+            error_string = "SPARE DRV ERR";
             break;
         case MOTOR_INIT_PIO_ERR:
             error_string = "PIO ERR";
@@ -828,11 +829,11 @@ void apply_rest_motor_config(motor_config_t * motor_config, int num_params, char
 }
 
 
-bool http_rest_coarse_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
+bool http_rest_feeder_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
     static char json_buffer[256];
 
-    apply_rest_motor_config(&coarse_trickler_motor_config, num_params, params, values);
-    populate_rest_motor_config(&coarse_trickler_motor_config, json_buffer, sizeof(json_buffer));
+    apply_rest_motor_config(&feeder_motor_config, num_params, params, values);
+    populate_rest_motor_config(&feeder_motor_config, json_buffer, sizeof(json_buffer));
 
     size_t response_len = strlen(json_buffer);
     file->data = json_buffer;
@@ -843,11 +844,11 @@ bool http_rest_coarse_motor_config(struct fs_file *file, int num_params, char *p
     return true;
 }
 
-bool http_rest_fine_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
+bool http_rest_spare_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
     static char json_buffer[256];
 
-    apply_rest_motor_config(&fine_trickler_motor_config, num_params, params, values);
-    populate_rest_motor_config(&fine_trickler_motor_config, json_buffer, sizeof(json_buffer));
+    apply_rest_motor_config(&spare_motor_config, num_params, params, values);
+    populate_rest_motor_config(&spare_motor_config, json_buffer, sizeof(json_buffer));
 
     size_t response_len = strlen(json_buffer);
     file->data = json_buffer;

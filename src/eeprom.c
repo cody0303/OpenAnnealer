@@ -12,7 +12,6 @@
 #include "eeprom.h"
 #include "scale.h"
 #include "motors.h"
-#include "charge_mode.h"
 #include "common.h"
 #include "wireless.h"
 #include "app.h"

@@ -11,14 +11,13 @@
 #include "scale.h"
 #include "display.h"
 #include "common.h"
-#include "charge_mode.h"
 #include "cleanup_mode.h"
 #include "servo_gate.h"
 
+#define WEIGHT_STRING_LEN 8
 
 // Memory from other modules
 extern QueueHandle_t encoder_event_queue;
-extern charge_mode_config_t charge_mode_config;
 extern servo_gate_t servo_gate;
 extern AppState_t exit_state;
 extern QueueHandle_t encoder_event_queue;
@@ -57,7 +56,7 @@ void cleanup_render_task(void *p) {
         
         // Convert to weight string with given decimal places
         char weight_string[WEIGHT_STRING_LEN];
-        float_to_string(weight_string, current_weight, charge_mode_config.eeprom_charge_mode_data.decimal_places);
+        float_to_string(weight_string, current_weight, DP_2);
 
         sprintf(buf, "Weight: %s", weight_string);
         u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
@@ -109,12 +108,12 @@ uint8_t cleanup_mode_menu() {
     cleanup_mode_config.cleanup_mode_state = CLEANUP_MODE_ENTER;
 
     // Enable both motors
-    motor_enable(SELECT_COARSE_TRICKLER_MOTOR, true);
-    motor_enable(SELECT_FINE_TRICKLER_MOTOR, true);
+    motor_enable(SELECT_FEEDER_MOTOR, true);
+    motor_enable(SELECT_SPARE_MOTOR, true);
 
-    // Open servo gate (if enabled)
-    if (servo_gate.gate_state != GATE_DISABLED) {
-        servo_gate_set_ratio(SERVO_GATE_RATIO_OPEN, true);
+    // Drop the holder clear (if enabled)
+    if (servo_gate.gate_state != HOLDER_DISABLED) {
+        servo_gate_set_ratio(HOLDER_RATIO_DROP, true);
     }
 
     // Update current status
@@ -153,8 +152,8 @@ uint8_t cleanup_mode_menu() {
         
     }
 
-    motor_enable(SELECT_COARSE_TRICKLER_MOTOR, false);
-    motor_enable(SELECT_FINE_TRICKLER_MOTOR, false);
+    motor_enable(SELECT_FEEDER_MOTOR, false);
+    motor_enable(SELECT_SPARE_MOTOR, false);
 
     cleanup_mode_config.cleanup_mode_state = CLEANUP_MODE_EXIT;
 
