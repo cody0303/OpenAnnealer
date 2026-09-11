@@ -43,12 +43,13 @@ static inline float clamp01(float x) {
 }
 
 static void inline _set_duty_cycle(uint16_t duty_cycle) {
-    // Only the half of the CC register driving SERVO_PWM_PIN is updated; the other
-    // channel on this slice isn't routed to any pin, so it's left untouched.
+    // SERVO_PWM_PIN (27) is odd -> PWM channel B -> the CC register's upper 16 bits
+    // (CC_A/channel A, the even-GPIO half, is bits [15:0] and isn't routed to any
+    // pin now, so it's left untouched).
     hw_write_masked(
         &pwm_hw->slice[SERVO_PWM_SLICE_NUM].cc,
-        (uint32_t) duty_cycle,
-        0x0000ffffu
+        ((uint32_t) duty_cycle) << 16,
+        0xffff0000u
     );
 }
 
