@@ -75,23 +75,26 @@ uint8_t anneal_calibration_mode_menu() {
 
     profile_t * profile = profile_get_selected();
 
-    // Feed a case in, same as anneal_mode's own feed step.
+    // Position the holder using the selected profile's ratio BEFORE feeding a case
+    // in - matches anneal_mode's own ordering (see anneal_mode_hold()'s comment):
+    // feeding into a holder that's still dropped/clear risks the case missing the
+    // holder or binding against it mid-move.
     strcpy(title_string, "Calibrating");
-    strcpy(line1, "Feeding case...");
+    strcpy(line1, "Positioning...");
     memset(line2, 0x0, sizeof(line2));
     show_next_key = false;
 
+    servo_gate_set_ratio(profile->holder_hold_ratio, true);
+
+    // Feed a case in, same as anneal_mode's own feed step.
+    strcpy(line1, "Feeding case...");
     motor_enable(SELECT_FEEDER_MOTOR, true);
     motor_set_speed(SELECT_FEEDER_MOTOR, profile->feed_speed_rps);
     vTaskDelay(pdMS_TO_TICKS(profile->feed_run_time_ms));
     motor_set_speed(SELECT_FEEDER_MOTOR, 0);
     motor_enable(SELECT_FEEDER_MOTOR, false);
 
-    // Position the holder using the selected profile's ratio, so calibration
-    // reflects the actual case-length holder position, then let it settle the same
-    // way a real cycle would.
-    strcpy(line1, "Positioning...");
-    servo_gate_set_ratio(profile->holder_hold_ratio, true);
+    // Let the case finish settling into the holder the same way a real cycle would.
     vTaskDelay(pdMS_TO_TICKS(profile->pre_heat_settle_ms));
 
     strcpy(title_string, "Watch the paint");

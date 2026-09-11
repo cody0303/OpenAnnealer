@@ -9,10 +9,14 @@
 
 #define EEPROM_ANNEAL_MODE_DATA_REV                     2              // 16 byte - bumped: per-recipe fields moved to profile_t (Milestone 5)
 
+// Values match chronological execution order (HOLD first: the holder must be in
+// position before a case is fed, not after - see anneal_mode_hold() for why). The
+// web UI's step-progress widget relies on this ordering to highlight steps
+// correctly; keep them in sync if this sequence ever changes again.
 typedef enum {
     ANNEAL_MODE_EXIT = 0,
-    ANNEAL_MODE_FEED = 1,
-    ANNEAL_MODE_HOLD = 2,
+    ANNEAL_MODE_HOLD = 1,
+    ANNEAL_MODE_FEED = 2,
     ANNEAL_MODE_HEAT = 3,
     ANNEAL_MODE_DROP = 4,
     ANNEAL_MODE_COOLDOWN = 5,

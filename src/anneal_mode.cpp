@@ -120,7 +120,7 @@ void anneal_status_render_task(void *p) {
 }
 
 
-static void anneal_mode_feed(void) {
+static void anneal_mode_hold(void) {
     neopixel_led_set_colour(
         neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour,
         anneal_mode_config.eeprom_anneal_mode_data.neopixel_ready_colour,
@@ -128,6 +128,25 @@ static void anneal_mode_feed(void) {
         true
     );
 
+    snprintf(title_string, sizeof(title_string), "Positioning");
+
+    ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
+    if (button_encoder_event == BUTTON_RST_PRESSED) {
+        anneal_mode_config.anneal_mode_state = ANNEAL_MODE_EXIT;
+        return;
+    }
+
+    // The holder must be in position BEFORE the case is fed, not after - feeding
+    // into a holder that's still in its dropped/clear position (left over from the
+    // previous case) risks the incoming case missing the holder or binding against
+    // it mid-move. Block until the move completes.
+    servo_gate_set_ratio(profile_get_selected()->holder_hold_ratio, true);
+
+    anneal_mode_config.anneal_mode_state = ANNEAL_MODE_FEED;
+}
+
+
+static void anneal_mode_feed(void) {
     snprintf(title_string, sizeof(title_string), "Feeding Case");
 
     ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
@@ -141,23 +160,8 @@ static void anneal_mode_feed(void) {
     vTaskDelay(pdMS_TO_TICKS(profile->feed_run_time_ms));
     motor_set_speed(SELECT_FEEDER_MOTOR, 0);
 
-    anneal_mode_config.anneal_mode_state = ANNEAL_MODE_HOLD;
-}
-
-
-static void anneal_mode_hold(void) {
-    snprintf(title_string, sizeof(title_string), "Positioning");
-
-    ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
-    if (button_encoder_event == BUTTON_RST_PRESSED) {
-        anneal_mode_config.anneal_mode_state = ANNEAL_MODE_EXIT;
-        return;
-    }
-
-    profile_t * profile = profile_get_selected();
-
-    // Block until the holder finishes moving before starting the settle delay
-    servo_gate_set_ratio(profile->holder_hold_ratio, true);
+    // Let the case finish settling into the already-positioned holder before
+    // enabling the coil.
     vTaskDelay(pdMS_TO_TICKS(profile->pre_heat_settle_ms));
 
     anneal_mode_config.anneal_mode_state = ANNEAL_MODE_HEAT;
@@ -253,7 +257,7 @@ static void anneal_mode_cooldown(void) {
         vTaskDelay(pdMS_TO_TICKS(20));
     }
 
-    anneal_mode_config.anneal_mode_state = ANNEAL_MODE_FEED;
+    anneal_mode_config.anneal_mode_state = ANNEAL_MODE_HOLD;
 }
 
 
@@ -277,7 +281,7 @@ uint8_t anneal_mode_menu(bool anneal_mode_skip_user_input) {
     motor_enable(SELECT_FEEDER_MOTOR, true);
 
     anneal_mode_config.cases_completed = 0;
-    anneal_mode_config.anneal_mode_state = ANNEAL_MODE_FEED;
+    anneal_mode_config.anneal_mode_state = ANNEAL_MODE_HOLD;
 
     bool quit = false;
     while (!quit) {
@@ -420,7 +424,7 @@ bool http_rest_anneal_mode_state(struct fs_file *file, int num_params, char *par
                 ButtonEncoderEvent_t button_event = BUTTON_RST_PRESSED;
                 xQueueSend(encoder_event_queue, &button_event, portMAX_DELAY);
             }
-            else if (new_state == ANNEAL_MODE_FEED && anneal_mode_config.anneal_mode_state == ANNEAL_MODE_EXIT) {
+            else if (new_state == ANNEAL_MODE_HOLD && anneal_mode_config.anneal_mode_state == ANNEAL_MODE_EXIT) {
                 exit_state = APP_STATE_ENTER_ANNEAL_MODE_FROM_REST;
 
                 ButtonEncoderEvent_t button_event = OVERRIDE_FROM_REST;

@@ -51,8 +51,8 @@
 
                     <!-- Row 2 -->
                     <ul class="steps">
-                        <li id="annealStateFeed" class="step step-primary">Feed</li>
-                        <li id="annealStateHold" class="step">Hold</li>
+                        <li id="annealStateHold" class="step step-primary">Hold</li>
+                        <li id="annealStateFeed" class="step">Feed</li>
                         <li id="annealStateHeat" class="step">Heat</li>
                         <li id="annealStateDrop" class="step">Drop</li>
                         <li id="annealStateCooldown" class="step">Cooldown</li>
@@ -816,10 +816,13 @@
 
 <!-- Scripts to support the webapp -->
 <script>
+    // Values match anneal_mode_state_t in src/anneal_mode.h - chronological
+    // execution order (HOLD first: the holder must be positioned before a case is
+    // fed, not after).
     const AnnealModeState = Object.freeze({
         EXIT: 0,
-        FEED: 1,
-        HOLD: 2,
+        HOLD: 1,
+        FEED: 2,
         HEAT: 3,
         DROP: 4,
         COOLDOWN: 5,
@@ -842,7 +845,7 @@
     function startAnnealCycle() {
         const cycleCount = document.getElementById("cycleCountInput").value || 0;
 
-        const uri = `/rest/anneal_mode_state?s0=${encodeURIComponent(cycleCount)}&s2=${encodeURIComponent(AnnealModeState.FEED)}`;
+        const uri = `/rest/anneal_mode_state?s0=${encodeURIComponent(cycleCount)}&s2=${encodeURIComponent(AnnealModeState.HOLD)}`;
 
         fetch(uri)
         .then(response => {
@@ -867,11 +870,11 @@
 
     // Helper function to update the anneal-cycle steps widget
     const PRIMARY_CLASS = "step-primary";
-    const ANNEAL_STEP_IDS = ["annealStateFeed", "annealStateHold", "annealStateHeat", "annealStateDrop", "annealStateCooldown"];
+    const ANNEAL_STEP_IDS = ["annealStateHold", "annealStateFeed", "annealStateHeat", "annealStateDrop", "annealStateCooldown"];
 
     function _setAnnealStateWidget(state) {
-        // FEED=1 .. COOLDOWN=5 map directly to indices 0..4; EXIT clears all steps.
-        const activeCount = (state >= AnnealModeState.FEED && state <= AnnealModeState.COOLDOWN) ? state : 0;
+        // HOLD=1 .. COOLDOWN=5 map directly to indices 0..4; EXIT clears all steps.
+        const activeCount = (state >= AnnealModeState.HOLD && state <= AnnealModeState.COOLDOWN) ? state : 0;
 
         ANNEAL_STEP_IDS.forEach((id, idx) => {
             const el = document.getElementById(id);
