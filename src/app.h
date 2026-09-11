@@ -17,6 +17,9 @@ typedef enum {
     APP_STATE_ENTER_EEPROM_ERASE = 8,
     APP_STATE_ENTER_REBOOT = 9,
     APP_STATE_ENTER_WIFI_INFO = 10,
+    // Not reusing APP_STATE_ENTER_SCALE_CALIBRATION's slot (6) yet - scale
+    // calibration is still wired up and functional until Milestone 8 removes it.
+    APP_STATE_ENTER_CASE_CALIBRATION_MODE = 11,
 } AppState_t;
 
 

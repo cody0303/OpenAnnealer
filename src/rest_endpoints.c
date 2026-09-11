@@ -12,6 +12,7 @@
 #include "neopixel_led.h"
 #include "profile.h"
 #include "anneal_manual_mode.h"
+#include "anneal_calibration_mode.h"
 #include "servo_gate.h"
 #include "system_control.h"
 #include "induction_heater.h"
@@ -88,6 +89,7 @@ bool rest_endpoints_init(bool default_wizard) {
     rest_register_handler("/rest/anneal_mode_config", http_rest_anneal_mode_config);
     rest_register_handler("/rest/anneal_mode_state", http_rest_anneal_mode_state);
     rest_register_handler("/rest/manual_mode_state", http_rest_manual_mode_state);
+    rest_register_handler("/rest/anneal_calibration_state", http_rest_anneal_calibration_state);
     rest_register_handler("/rest/system_control", http_rest_system_control);
     rest_register_handler("/rest/feeder_motor_config", http_rest_feeder_motor_config);
     rest_register_handler("/rest/spare_motor_config", http_rest_spare_motor_config);
