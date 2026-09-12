@@ -44,6 +44,11 @@ uint8_t wireless_view_wifi_info(void);
 // AP mode the radio has no separate "joining" phase, so listening state alone counts.
 bool wireless_is_network_ready(void);
 
+// Diagnostic-only: raw cyw43_tcpip_link_status() value (CYW43_LINK_* from cyw43.h), or
+// -100 if not currently in the STA-mode LISTEN state. Added to investigate the
+// Milestone 3 OTA rollback bug - see ota_update.c's health check.
+int wireless_get_raw_link_status_for_debug(void);
+
 bool http_rest_wireless_config(struct fs_file *file, int num_params, char *params[], char *values[]);
 
 #ifdef __cplusplus

@@ -121,7 +121,13 @@ static void _ota_show_rollback_fault(void) {
 
 static void _ota_confirm_now(void) {
     static uint8_t buy_scratch[4096] __attribute__((aligned(4)));
+#if OTA_DEBUG_SERIAL
+    printf("OTA: calling rom_explicit_buy()...\n");
+#endif
     int rc = rom_explicit_buy(buy_scratch, sizeof(buy_scratch));
+#if OTA_DEBUG_SERIAL
+    printf("OTA: rom_explicit_buy() returned rc=%d\n", rc);
+#endif
 
     if (rc >= 0) {
         printf("OTA: image confirmed (rom_explicit_buy rc=%d)\n", rc);
@@ -155,6 +161,11 @@ static void _ota_health_check_timer_callback(TimerHandle_t timer) {
     bool stable_long_enough = ota.network_currently_ready &&
         ((now - ota.network_ready_since_tick) * portTICK_PERIOD_MS >= OTA_HEALTH_MIN_STABLE_MS);
     bool timed_out = elapsed_ms >= OTA_HEALTH_MAX_WAIT_MS;
+
+#if OTA_DEBUG_SERIAL
+    printf("OTA: health check tick, elapsed=%lu ms, ready=%d, stable_long_enough=%d, raw_link_status=%d\n",
+           elapsed_ms, ready, stable_long_enough, wireless_get_raw_link_status_for_debug());
+#endif
 
     if (!stable_long_enough && !timed_out) {
         return;

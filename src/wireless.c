@@ -310,6 +310,11 @@ void wireless_task(void *p) {
             wifi_password = wireless_config.eeprom_wireless_metadata.pw;
         }
 
+#if OTA_DEBUG_SERIAL
+        printf("WIFI: starting STA connect attempts (ssid=%s, timeout=%lu ms)\n",
+               wireless_config.eeprom_wireless_metadata.ssid, wireless_config.eeprom_wireless_metadata.timeout_ms);
+#endif
+
         // Retry within timeframe
         TickType_t stop_tick = xTaskGetTickCount() + pdMS_TO_TICKS(wireless_config.eeprom_wireless_metadata.timeout_ms);
         while (xTaskGetTickCount() < stop_tick) {
@@ -318,6 +323,9 @@ void wireless_task(void *p) {
                                                       wifi_password,
                                                       get_cyw43_auth(wireless_config.eeprom_wireless_metadata.auth),
                                                       wireless_config.eeprom_wireless_metadata.timeout_ms);
+#if OTA_DEBUG_SERIAL
+            printf("WIFI: cyw43_arch_wifi_connect_timeout_ms() returned %d\n", resp);
+#endif
             if (resp == PICO_OK) {
                 wireless_config.current_wireless_state = WIRELESS_STATE_STA_MODE_LISTEN;
                 break;
@@ -331,6 +339,9 @@ void wireless_task(void *p) {
     // If the state didn't change (connection failed) then we shall put it back to idle
     if (wireless_config.current_wireless_state == WIRELESS_STATE_STA_MODE_INIT) {
          wireless_config.current_wireless_state = WIRELESS_STATE_IDLE;
+#if OTA_DEBUG_SERIAL
+        printf("WIFI: STA connect did not succeed within timeout, falling back\n");
+#endif
     }
 
 
@@ -340,13 +351,19 @@ void wireless_task(void *p) {
         wireless_config.current_wireless_state = WIRELESS_STATE_AP_MODE_INIT;
         access_point_mode_start();
         wireless_config.current_wireless_state = WIRELESS_STATE_AP_MODE_LISTEN;
+#if OTA_DEBUG_SERIAL
+        printf("WIFI: AP mode listening\n");
+#endif
     }
     else {
+#if OTA_DEBUG_SERIAL
+        printf("WIFI: STA connected, starting mdns\n");
+#endif
         cyw43_arch_lwip_begin();
         // If the STA mode is successfully initialized, we will also start the mdns service
         mdns_resp_init();
 
-        // The opentrickler can be accessed via 
+        // The opentrickler can be accessed via
         mdns_resp_add_netif(&cyw43_state.netif[CYW43_ITF_STA], host_name);
 
         // Add service HTTP, allowing user to access the web interface with hostname.local format
@@ -355,16 +372,27 @@ void wireless_task(void *p) {
         // Add secondary service to allow client to discover with service _opentrickler._tcp.local
         mdns_resp_add_service(&cyw43_state.netif[CYW43_ITF_STA], "app_httpd", "_opentrickler", DNSSD_PROTO_TCP, 80, srv_txt, NULL);
         cyw43_arch_lwip_end();
+#if OTA_DEBUG_SERIAL
+        printf("WIFI: mdns started\n");
+#endif
     }
 
     // Initialize REST endpoints
     // If the current wireless state is AP mode then we will map / to the wifi configuration
     rest_endpoints_init(wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN);
 
+#if OTA_DEBUG_SERIAL
+    printf("WIFI: rest_endpoints_init() done, starting httpd_init()\n");
+#endif
+
     // Start the HTTP server
     cyw43_arch_lwip_begin();
     httpd_init();
     cyw43_arch_lwip_end();
+
+#if OTA_DEBUG_SERIAL
+    printf("WIFI: httpd_init() done\n");
+#endif
 
     while (true) {
         wireless_ctrl_t wireless_ctrl;
@@ -390,6 +418,14 @@ void wireless_task(void *p) {
 }
 
 
+int wireless_get_raw_link_status_for_debug(void) {
+    if (wireless_config.current_wireless_state != WIRELESS_STATE_STA_MODE_LISTEN) {
+        return -100;
+    }
+    return cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA);
+}
+
+
 bool wireless_is_network_ready(void) {
     if (wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN) {
         // AP mode's radio is our own access point, not a join to someone else's - once
@@ -397,10 +433,14 @@ bool wireless_is_network_ready(void) {
         return true;
     }
     if (wireless_config.current_wireless_state == WIRELESS_STATE_STA_MODE_LISTEN) {
-        // Unlike current_wireless_state (only ever set once, at the end of the initial
-        // connect attempt), this re-checks the live link every call, so a later drop is
-        // correctly reflected rather than reporting stale "ready" forever.
-        return cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_STA) == CYW43_LINK_UP;
+        // cyw43_wifi_link_status() (used here originally) only ever reports as high as
+        // CYW43_LINK_JOIN (radio-level association) - CYW43_LINK_NOIP/_UP are exclusively
+        // produced by cyw43_tcpip_link_status() (the lwIP-integrated check that also
+        // accounts for whether DHCP has actually handed out an address), so comparing
+        // cyw43_wifi_link_status()'s result against CYW43_LINK_UP could never be true.
+        // Confirmed against real hardware: found via an OTA health-check trace that
+        // never saw "ready" even minutes after the device was reachable over REST.
+        return cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA) == CYW43_LINK_UP;
     }
     return false;
 }
