@@ -81,30 +81,6 @@ uint8_t render_version_page(mui_t * ui, uint8_t msg) {
 }
 
 
-uint8_t render_profile_ver_info(mui_t *ui, uint8_t msg) {
-    switch (msg) {
-        case MUIF_MSG_DRAW: 
-        {
-            u8g2_uint_t x = mui_get_x(ui);
-            u8g2_uint_t y = mui_get_y(ui);
-            u8g2_t *u8g2 = mui_get_U8g2(ui);
-
-            u8g2_SetFont(u8g2, u8g2_font_profont11_tf);
-
-            profile_t * current_profile = profile_get_selected();
-
-            char buf[32];
-            snprintf(buf, sizeof(buf), 
-                     "Rev:%lx,Comp:%lx", current_profile->rev, current_profile->compatibility);
-
-            u8g2_DrawStr(u8g2, x, y, buf);
-        }
-    }
-
-    return 0;
-}
-
-
 uint8_t render_profile_feed_details(mui_t *ui, uint8_t msg) {
     switch(msg)
     {
@@ -319,7 +295,6 @@ muif_t muif_list[] = {
         MUIF_U8G2_U16_LIST("P1", (uint16_t *) &profile_data.current_profile_idx, NULL, get_selected_profile_name, get_profile_count, mui_u8g2_u16_list_child_w1_pi),
 
         // Render profile details
-        MUIF_RO("P2", render_profile_ver_info),
         MUIF_RO("P3", render_profile_feed_details),
         MUIF_RO("P4", render_profile_heat_details)
     };
@@ -431,9 +406,6 @@ fds_t fds_data[] = {
     MUI_XYA("P0", 5, 25, 33)  // Jump to form 33
     MUI_XYAT("BN",115, 59, 34, "Next")  // Jump to form 34
     MUI_XYAT("BN",14, 59, 30, "Back")  // Jump to form 30
-
-    // Render details
-    MUI_XY("P2", 5, 37)
 
     // Child List for profile selection
     MUI_FORM(33)

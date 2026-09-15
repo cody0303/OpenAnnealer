@@ -9,13 +9,12 @@
 #define PROFILE_NAME_MAX_LEN    16
 #define MAX_PROFILE_CNT         8
 
-#define EEPROM_PROFILE_DATA_REV             4           // 16 bit - bumped: added target_temp_c (Milestone 11)
+#define EEPROM_PROFILE_DATA_REV             5           // 16 bit - bumped: removed rev/compatibility (vestigial,
+                                                         // inherited from the original OpenTrickler profile schema,
+                                                         // never read/checked anywhere in this codebase's logic)
 
 typedef struct
 {
-    uint32_t rev;
-    uint32_t compatibility;
-
     char name[PROFILE_NAME_MAX_LEN];
 
     // Anneal recipe: how this case type should be fed/held/heated. dwell_time_ms is

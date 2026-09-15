@@ -25,7 +25,6 @@ eeprom_profile_data_t profile_data;
 const eeprom_profile_data_t default_profile_data = {
     .profile_data_rev = 0,
     .profiles[0] = {
-        .compatibility = 0,
         .name = "LC 5.56",
         .feed_run_time_ms = DEFAULT_FEED_RUN_TIME_MS,
         .feed_speed_rps = DEFAULT_FEED_SPEED_RPS,
@@ -34,31 +33,24 @@ const eeprom_profile_data_t default_profile_data = {
         .post_heat_delay_ms = DEFAULT_POST_HEAT_DELAY_MS,
     },
     .profiles[1] = {
-        .compatibility = 0,
         .name = "Profile1",
     },
     .profiles[2] = {
-        .compatibility = 0,
         .name = "Profile2",
     },
     .profiles[3] = {
-        .compatibility = 0,
         .name = "Profile3",
     },
     .profiles[4] = {
-        .compatibility = 0,
         .name = "Profile4",
     },
     .profiles[5] = {
-        .compatibility = 0,
         .name = "Profile5",
     },
     .profiles[6] = {
-        .compatibility = 0,
         .name = "Profile6",
     },
     .profiles[7] = {
-        .compatibility = 0,
         .name = "Profile7",
     },
 };
@@ -109,8 +101,6 @@ profile_t * profile_select(uint8_t idx) {
 bool http_rest_profile_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
     // Mappings:
     // pf (int): profile index
-    // p0 (int): rev
-    // p1 (int): compatibility
     // p2 (str): name
     // p3 (int): feed_run_time_ms
     // p4 (float): feed_speed_rps
@@ -141,13 +131,7 @@ bool http_rest_profile_config(struct fs_file *file, int num_params, char *params
 
         // Control
         for (int idx = 0; idx < num_params; idx += 1) {
-            if (strcmp(params[idx], "p0") == 0) {
-                current_profile->rev = strtol(values[idx], NULL, 10);
-            }
-            else if (strcmp(params[idx], "p1") == 0) {
-                current_profile->compatibility = strtol(values[idx], NULL, 10);
-            }
-            else if (strcmp(params[idx], "p2") == 0) {
+            if (strcmp(params[idx], "p2") == 0) {
                 strncpy(current_profile->name, values[idx], sizeof(current_profile->name));
             }
             else if (strcmp(params[idx], "p3") == 0) {
@@ -181,11 +165,9 @@ bool http_rest_profile_config(struct fs_file *file, int num_params, char *params
         // Response
         snprintf(buf, sizeof(buf),
                  "%s"
-                 "{\"pf\":%d,\"p0\":%ld,\"p1\":%ld,\"p2\":\"%s\",\"p3\":%lu,\"p4\":%0.3f,\"p5\":%lu,\"p6\":%lu,\"p7\":%lu,\"p9\":%0.2f}",
+                 "{\"pf\":%d,\"p2\":\"%s\",\"p3\":%lu,\"p4\":%0.3f,\"p5\":%lu,\"p6\":%lu,\"p7\":%lu,\"p9\":%0.2f}",
                  http_json_header,
                  profile_idx,
-                 current_profile->rev,
-                 current_profile->compatibility,
                  current_profile->name,
                  current_profile->feed_run_time_ms,
                  current_profile->feed_speed_rps,
