@@ -1768,6 +1768,11 @@
 
             if (debugEl) {
                 const navRect = btmNav.getBoundingClientRect();
+                const cs = getComputedStyle(btmNav);
+                const midX = window.innerWidth / 2;
+                const topHit = document.elementFromPoint(midX, navRect.top + 5);
+                const midHit = document.elementFromPoint(midX, (navRect.top + navRect.bottom) / 2);
+                const describeEl = (el) => el ? `${el.tagName}.${(el.className + '').split(' ').join('.')}` : 'none';
                 debugEl.textContent =
                     `innerHeight: ${window.innerHeight}\n` +
                     `vv.height: ${vv ? Math.round(vv.height) : 'n/a'}\n` +
@@ -1776,7 +1781,11 @@
                     `scrollY: ${window.scrollY}\n` +
                     `docScrollHeight: ${document.documentElement.scrollHeight}\n` +
                     `navRect.top: ${Math.round(navRect.top)}\n` +
-                    `navRect.bottom: ${Math.round(navRect.bottom)}`;
+                    `navRect.bottom: ${Math.round(navRect.bottom)}\n` +
+                    `nav z-index: ${cs.zIndex}, position: ${cs.position}\n` +
+                    `nav transform: ${cs.transform}\n` +
+                    `hit@navTop+5: ${describeEl(topHit)}\n` +
+                    `hit@navMid: ${describeEl(midHit)}`;
             }
         }
 
