@@ -104,91 +104,109 @@ uint32_t software_crc32(void * data, size_t length) {
 }
 
 
+// Sanity bound on a stored-size header read from EEPROM, so uninitialized/garbage data
+// (e.g. 0xFFFF from erased flash) can never be misread as a huge size and trigger a
+// runaway malloc. Every EEPROM slot in this codebase is spaced 1KB apart (see eeprom.h)
+// and the largest struct today is under 300 bytes, so this leaves comfortable headroom.
+#define EEPROM_CONFIG_MAX_SIZE 1024
+
+
+// On-disk layout per config slot: [stored_size(2 bytes)][payload(stored_size bytes)][crc32
+// (4 bytes) over the payload]. Storing the actual size that was written (not just trusting
+// the caller's current struct size) is what lets a struct grow a new field later without
+// wiping everything that was already saved: if the caller's struct is now larger than what's
+// stored, the stored bytes are copied in as-is (verified via a CRC computed over that
+// original stored size) and only the new trailing bytes are filled from defaults - every
+// field that already existed survives untouched. This only works cleanly if fields are only
+// ever appended at the end of a struct, never reordered/retyped/removed from the middle -
+// reordering would silently reinterpret old bytes as the wrong new field, which is worse
+// than a clean wipe. (Removing a field from the end is fine: the old trailing bytes are
+// simply dropped since the caller's struct is now smaller than stored_size.)
+//
+// rev_validation is no longer used for validation (kept in the signature so no call site
+// needs to change) - it used to gate a one-time migration from an even older pre-CRC32
+// scheme, which is dead in this fork (every default struct in this codebase already stores
+// rev 0, meaning it already went through that migration at least once if it was ever
+// relevant) and was removed here rather than kept, since a stored_size value could
+// otherwise coincidentally collide with a small rev_validation constant and misfire.
 bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t size, uint16_t rev_validation) {
-    bool is_ok;
-    uint32_t calculated_crc32;
+    (void) rev_validation;
 
+    // Try today's format first: [stored_size][payload][crc32].
+    uint16_t stored_size = 0;
+    if (eeprom_read(addr, (uint8_t *) &stored_size, sizeof(stored_size)) &&
+        stored_size > 0 && stored_size <= EEPROM_CONFIG_MAX_SIZE) {
 
-    // Prepare rx buffer
-    size_t read_size = size + sizeof(calculated_crc32);
-    uint8_t * buf = malloc(read_size);
+        size_t read_len = (size_t) stored_size + sizeof(uint32_t);
+        uint8_t * buf = malloc(read_len);
+        if (buf != NULL) {
+            if (eeprom_read(addr + sizeof(stored_size), buf, read_len)) {
+                uint32_t stored_crc = 0;
+                memcpy(&stored_crc, buf + stored_size, sizeof(stored_crc));
 
-    if (!buf) {
-        printf("Unable to allocate buffer with size: %d", read_size);
-        return false;
-    }
+                if (software_crc32(buf, stored_size) == stored_crc) {
+                    size_t copy_len = (stored_size < size) ? stored_size : size;
+                    memcpy(cfg, buf, copy_len);
+                    if (size > copy_len) {
+                        // Struct grew since this was last saved - fill only the new
+                        // trailing bytes from defaults; everything copied above is untouched.
+                        memcpy((uint8_t *) cfg + copy_len, (const uint8_t *) default_cfg + copy_len, size - copy_len);
+                    }
+                    free(buf);
 
-    // Read data
-    is_ok = eeprom_read(addr, buf, read_size);
-
-    // Unable to read from eeprom, then we will quit
-    if (!is_ok) {
-        printf("Unable to read from addr: 0x%04x", addr);
-        free(buf);
-        return is_ok;
-    }
-
-    /**
-     * FIXME: This is only for backward compatibility purpose: 
-     *  In the past (pre 1.17) the code relies on the revision number (uint16_t) to identify the change of configuration structure.
-     *  Now we are switching to CRC32 based, but we still want the old configuration to be migrated. In this case the migration is 
-     *      achieved by accepting rev validation, then erase the validation from the subsequent write operation. If the rev validation
-     *      failed then the code will valiate CRC32 instead. 
-     */
-    uint16_t received_rev;
-    memcpy(&received_rev, buf, sizeof(received_rev));
-    if (received_rev == rev_validation) {
-        // Accept the buffer
-        memcpy(cfg, buf, size);
-        free(buf);
-
-        // Erase the rev from the stored data to highlight the rev is deprecated
-        memset(cfg, 0x00, sizeof(received_rev));
-
-        // Save it back
-        is_ok = save_config(addr, cfg, size);
-
-        return is_ok;
-    }
-    // Following are the new validation method based on crc32
-
-    // Verify crc
-    uint32_t received_crc32 = 0;
-
-    calculated_crc32 = software_crc32(buf, size);
-    memcpy(&received_crc32, buf + size, sizeof(received_crc32));
-
-    // We will validate if the rev (first 2 byte) is 0, AND CRC check matches. 
-    if ((received_rev != 0) || (calculated_crc32 != received_crc32)) {
-        if (received_rev != 0) {
-            printf("EEPROM is unlikely initialized, will populate with default configuration\n");
+                    if (stored_size != size) {
+                        printf("Configuration at addr 0x%04x migrated from %u to %u bytes\n", addr, stored_size, (unsigned) size);
+                        save_config(addr, cfg, size);
+                    }
+                    else {
+                        printf("Configuration read successfully\n");
+                    }
+                    return true;
+                }
+            }
+            free(buf);
         }
-        if (calculated_crc32 != received_crc32) {
-            printf("CRC32 mismatch at address %x, received: %08lX, calculated: %08lX\n", addr, received_crc32, calculated_crc32);
+    }
+
+    // Fall back to the pre-migration format (no size header - just [payload][crc32] at
+    // exactly the caller's current size): data saved by firmware from before this
+    // migration mechanism existed. If it validates, it hasn't changed shape since it was
+    // written, so it can be trusted and migrated to the new format in place with nothing
+    // lost - this is what lets already-saved settings (e.g. WiFi credentials) survive the
+    // first boot after this change instead of being wiped just because the on-disk
+    // wrapper format changed underneath them.
+    size_t legacy_read_len = size + sizeof(uint32_t);
+    uint8_t * legacy_buf = malloc(legacy_read_len);
+    if (legacy_buf != NULL) {
+        if (eeprom_read(addr, legacy_buf, legacy_read_len)) {
+            uint32_t stored_crc = 0;
+            memcpy(&stored_crc, legacy_buf + size, sizeof(stored_crc));
+
+            if (software_crc32(legacy_buf, size) == stored_crc) {
+                memcpy(cfg, legacy_buf, size);
+                free(legacy_buf);
+                printf("Configuration at addr 0x%04x migrated to new format\n", addr);
+                save_config(addr, cfg, size);
+                return true;
+            }
         }
-        // Apply the default configuration
-        free(buf);
-        memcpy(cfg, default_cfg, size);
-        return save_config(addr, cfg, size);
-    }
-    else {
-        printf("Configuration read successfully\n");
-
-        // Copy from buffer to config
-        memcpy(cfg, buf, size);
-        free(buf);
+        free(legacy_buf);
     }
 
-    return true;
+    // Neither format validated - uninitialized EEPROM, corruption, or a struct that both
+    // changed size AND is being read for the first time under this new scheme. Fall back
+    // to defaults, same as always.
+    printf("No valid configuration at addr 0x%04x, applying defaults\n", addr);
+    memcpy(cfg, default_cfg, size);
+    return save_config(addr, cfg, size);
 }
 
 
 bool save_config(uint16_t addr, void * cfg, size_t size) {
-    bool is_ok;
-    uint32_t calculated_crc32;
+    uint16_t stored_size = (uint16_t) size;
+    uint32_t calculated_crc32 = software_crc32(cfg, size);
 
-    // Copy data into buffer then append with crc32
-    size_t write_size = size + sizeof(calculated_crc32);
+    size_t write_size = sizeof(stored_size) + size + sizeof(calculated_crc32);
     uint8_t * buf = malloc(write_size);
 
     if (!buf) {
@@ -196,15 +214,11 @@ bool save_config(uint16_t addr, void * cfg, size_t size) {
         return false;
     }
 
-    // Calculate CRC
-    calculated_crc32 = software_crc32(cfg, size);
+    memcpy(buf, &stored_size, sizeof(stored_size));
+    memcpy(buf + sizeof(stored_size), cfg, size);
+    memcpy(buf + sizeof(stored_size) + size, &calculated_crc32, sizeof(calculated_crc32));
 
-    // Build write buffer by copying configuration appended with crc32
-    memcpy(buf, cfg, size);
-    memcpy(buf + size, &calculated_crc32, sizeof(calculated_crc32));
-
-    // Write to EEPROM
-    is_ok = eeprom_write(addr, buf, write_size);
+    bool is_ok = eeprom_write(addr, buf, write_size);
     if (!is_ok) {
         printf("Unable to write to addr: 0x%04x\n", addr);
     }

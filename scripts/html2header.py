@@ -51,8 +51,11 @@ def main(input_filepth, output_filepath, skip_minify):
     else:
         minified_html = input_file
 
-    # Append HTML header
-    minified_html = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n" + minified_html
+    # Append HTML header. Cache-Control: no-store is required - without it, browsers
+    # (mobile Chrome especially) can silently keep serving a stale cached copy of the
+    # whole page indefinitely on a normal reload, since this embedded static-file
+    # response has no ETag/Last-Modified to let a conditional GET revalidate against.
+    minified_html = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nCache-Control: no-store\r\n\r\n" + minified_html
 
     # Escape characters
     escaped_html = minified_html.replace("\\", "\\\\")

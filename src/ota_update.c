@@ -43,6 +43,7 @@
 
 typedef struct {
     eeprom_ota_data_t eeprom_ota_data;
+    eeprom_ota_settings_t eeprom_ota_settings;
 
     int8_t running_partition;      // from rom_get_boot_info(), -1 if unknown
     bool rollback_fault;           // true after boot-time rollback detection, until acknowledged
@@ -73,6 +74,11 @@ const eeprom_ota_data_t default_ota_data = {
     .last_result = OTA_RESULT_NONE,
 };
 
+const eeprom_ota_settings_t default_ota_settings = {
+    .ota_settings_rev = 0,
+    .debug_mode = false,
+};
+
 
 static uint32_t _ota_other_partition_offset(int8_t running_partition, uint8_t *out_partition) {
     if (running_partition == 0) {
@@ -87,6 +93,11 @@ static uint32_t _ota_other_partition_offset(int8_t running_partition, uint8_t *o
 
 bool ota_update_config_save(void) {
     return save_config(EEPROM_OTA_DATA_BASE_ADDR, &ota.eeprom_ota_data, sizeof(ota.eeprom_ota_data));
+}
+
+
+bool ota_update_settings_save(void) {
+    return save_config(EEPROM_OTA_SETTINGS_BASE_ADDR, &ota.eeprom_ota_settings, sizeof(ota.eeprom_ota_settings));
 }
 
 
@@ -201,7 +212,16 @@ void ota_update_init(void) {
                               sizeof(ota.eeprom_ota_data),
                               EEPROM_OTA_DATA_REV);
 
+    // Separate slot from eeprom_ota_data above - see eeprom_ota_settings_t's comment in
+    // ota_update.h for why debug_mode must never share a struct/rev with update_pending.
+    load_config(EEPROM_OTA_SETTINGS_BASE_ADDR,
+                &ota.eeprom_ota_settings,
+                &default_ota_settings,
+                sizeof(ota.eeprom_ota_settings),
+                EEPROM_OTA_SETTINGS_REV);
+
     eeprom_register_handler(ota_update_config_save);
+    eeprom_register_handler(ota_update_settings_save);
 
     if (!is_ok) {
         // Raw EEPROM read failure (not a CRC/rev mismatch - load_config() already
@@ -294,6 +314,11 @@ err_t httpd_post_begin(void *connection, const char *uri, const char *http_reque
     size_t prefix_len = strlen(OTA_UPLOAD_URI);
     if (strncmp(uri, OTA_UPLOAD_URI, prefix_len) != 0 ||
         (uri[prefix_len] != '\0' && uri[prefix_len] != '?')) {
+        return ERR_VAL;
+    }
+
+    if (!ota.eeprom_ota_settings.debug_mode) {
+        printf("OTA: rejecting upload, debug mode is off\n");
         return ERR_VAL;
     }
 
@@ -443,12 +468,19 @@ const char * ota_update_get_last_result_string(void) {
 bool http_rest_ota_update(struct fs_file *file, int num_params, char *params[], char *values[]) {
     // Mappings:
     // ack (bool): acknowledge/clear a rollback fault
+    // dbg (bool): enable/disable debug mode (required for /ota_upload to accept anything -
+    //             see httpd_post_begin()). Persisted immediately, not gated behind a
+    //             separate "ee" save flag - this is the only field this endpoint writes.
 
     static char json_buffer[256];
 
     for (int idx = 0; idx < num_params; idx += 1) {
         if (strcmp(params[idx], "ack") == 0 && string_to_boolean(values[idx])) {
             ota.rollback_fault = false;
+        }
+        else if (strcmp(params[idx], "dbg") == 0) {
+            ota.eeprom_ota_settings.debug_mode = string_to_boolean(values[idx]);
+            ota_update_settings_save();
         }
     }
 
@@ -458,7 +490,8 @@ bool http_rest_ota_update(struct fs_file *file, int num_params, char *params[], 
              sizeof(json_buffer),
              "%s"
              "{\"partition\":\"%c\",\"pending\":%s,\"last_result\":\"%s\",\"fault\":%s,"
-             "\"downloading\":%s,\"bytes_received\":%lu,\"expected_len\":%lu,\"upload_failed\":%s}",
+             "\"downloading\":%s,\"bytes_received\":%lu,\"expected_len\":%lu,\"upload_failed\":%s,"
+             "\"debug_mode\":%s}",
              http_json_header,
              partition_letter,
              boolean_to_string(ota.eeprom_ota_data.update_pending),
@@ -467,7 +500,8 @@ bool http_rest_ota_update(struct fs_file *file, int num_params, char *params[], 
              boolean_to_string(ota.download_active),
              ota.bytes_received,
              ota.expected_len,
-             boolean_to_string(ota.last_upload_failed));
+             boolean_to_string(ota.last_upload_failed),
+             boolean_to_string(ota.eeprom_ota_settings.debug_mode));
 
     size_t data_length = strlen(json_buffer);
     file->data = json_buffer;

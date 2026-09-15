@@ -7,12 +7,16 @@
 #include "neopixel_led.h"
 
 
-#define EEPROM_ANNEAL_MODE_DATA_REV                     1              // 16 byte
+#define EEPROM_ANNEAL_MODE_DATA_REV                     3              // 16 byte - bumped: added use_temperature_mode (Milestone 11)
 
+// Values match chronological execution order (HOLD first: the holder must be in
+// position before a case is fed, not after - see anneal_mode_hold() for why). The
+// web UI's step-progress widget relies on this ordering to highlight steps
+// correctly; keep them in sync if this sequence ever changes again.
 typedef enum {
     ANNEAL_MODE_EXIT = 0,
-    ANNEAL_MODE_FEED = 1,
-    ANNEAL_MODE_HOLD = 2,
+    ANNEAL_MODE_HOLD = 1,
+    ANNEAL_MODE_FEED = 2,
     ANNEAL_MODE_HEAT = 3,
     ANNEAL_MODE_DROP = 4,
     ANNEAL_MODE_COOLDOWN = 5,
@@ -21,22 +25,21 @@ typedef enum {
 typedef struct {
     uint16_t anneal_mode_data_rev;
 
-    // Feed: how long to run the feeder motor at feed_speed_rps to advance one case
-    uint32_t feed_run_time_ms;
-    float feed_speed_rps;
-
-    // Holder / heat timing.
-    // holder_hold_ratio and dwell_time_ms are global for now; a future pass may move
-    // them to per-profile fields once case-length-specific holder positions and
-    // per-recipe dwell times (from the calibration mode) are needed.
-    uint32_t pre_heat_settle_ms;    // Let the holder finish moving before enabling the coil
-    uint32_t dwell_time_ms;         // Heat time; must be <= the induction heater's max_dwell_ms
-    uint32_t post_heat_delay_ms;    // Let the coil fully de-energize before dropping
-    float holder_hold_ratio;        // Servo ratio while holding the case in the coil
+    // Feed/holder/heat timing is per-profile now (see profile.h) - a case's feed
+    // time, dwell time, and holder hold ratio all depend on its length/alloy, which
+    // is exactly what a profile represents. Only settings that apply regardless of
+    // which case type is loaded stay here.
 
     // Cycle
     uint32_t inter_cycle_delay_ms;  // Pause between cases
     uint32_t cycle_count;           // 0 = run until stopped
+
+    // Milestone 11: global time-vs-temperature mode switch for the anneal cycle (front
+    // page). Deliberately NOT a property of the IR temp sensor module itself - the
+    // sensor always reads/reports its own real health regardless of this switch, so a
+    // "not currently in temperature mode" state never looks like a sensor fault. Only
+    // changeable while no cycle is running - see http_rest_anneal_mode_config().
+    bool use_temperature_mode;
 
     // LED related settings
     rgbw_u32_t neopixel_ready_colour;

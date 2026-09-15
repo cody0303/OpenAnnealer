@@ -28,7 +28,7 @@ extern char second_line_buffer[32];
 extern char host_name[18];
 
 bool access_point_mode_start() {
-    char ap_password[] = "opentrickler";
+    char ap_password[] = "openannealer";
 
     cyw43_arch_enable_ap_mode(host_name, ap_password, CYW43_AUTH_WPA2_AES_PSK);
 

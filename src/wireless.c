@@ -20,7 +20,7 @@
 #endif
 
 // Overwrite the host name
-#define CYW43_HOST_NAME "opentrickler"
+#define CYW43_HOST_NAME "openannealer"
 #define LED_INTERFACE_MINIMUM_POLL_PERIOD_MS    20
 
 // The hostname is used by STA mode to advertise mDNS. The value is also used for AP mode as the SSID
@@ -171,10 +171,9 @@ bool wireless_init() {
     // Register to eeprom save all
     eeprom_register_handler(wireless_config_save);
 
-    // Generate the hostname
-    char id[4];
-    eeprom_get_board_id(id, sizeof(id));
-    snprintf(host_name, sizeof(host_name), "opentrickler-%s", id);
+    // Bare hostname to start - _mdns_name_result_cb() below appends -2/-3/... on its
+    // own if another device on the network already claims it.
+    snprintf(host_name, sizeof(host_name), "openannealer");
 
 
     return is_ok;
@@ -271,6 +270,33 @@ static void srv_txt(struct mdns_service *service, void *txt_userdata)
   LWIP_ERROR("mdns add service txt failed\n", (res == ERR_OK), return);
 }
 
+
+// lwIP's mDNS responder detects hostname conflicts (real RFC6762 probing/tiebreaking)
+// but does not rename or retry on its own - per its own source comment, that's left
+// entirely to the application via this callback. Without one, a genuine conflict would
+// just leave mDNS silently disabled on this netif forever (still reachable by IP, just
+// not by hostname.local). Appends/increments a numeric suffix and restarts probing
+// under the new name, so multiple units on the same network end up as
+// openannealer.local, openannealer-2.local, openannealer-3.local, etc.
+static uint8_t mdns_hostname_attempt = 1;
+
+static void _mdns_name_result_cb(struct netif *netif, u8_t result, s8_t slot) {
+    // slot 0 is the hostname itself; slot > 0 would be a service name conflict, which
+    // isn't expected here (service names aren't derived from anything host-specific).
+    if (result != MDNS_PROBING_CONFLICT || slot != 0) {
+        return;
+    }
+
+    mdns_hostname_attempt += 1;
+    snprintf(host_name, sizeof(host_name), "openannealer-%u", mdns_hostname_attempt);
+
+#if OTA_DEBUG_SERIAL
+    printf("MDNS: hostname conflict, retrying as '%s'\n", host_name);
+#endif
+
+    mdns_resp_rename_netif(netif, host_name);
+}
+
 void wireless_task(void *p) {
     static TaskHandle_t led_interface_task_handler = NULL;
 
@@ -361,16 +387,17 @@ void wireless_task(void *p) {
 #endif
         cyw43_arch_lwip_begin();
         // If the STA mode is successfully initialized, we will also start the mdns service
+        mdns_resp_register_name_result_cb(_mdns_name_result_cb);
         mdns_resp_init();
 
-        // The opentrickler can be accessed via
+        // The device can be accessed via hostname.local (see host_name generation above)
         mdns_resp_add_netif(&cyw43_state.netif[CYW43_ITF_STA], host_name);
 
         // Add service HTTP, allowing user to access the web interface with hostname.local format
         mdns_resp_add_service(&cyw43_state.netif[CYW43_ITF_STA], "rest_httpd", "_http", DNSSD_PROTO_TCP, 80, srv_txt, NULL);
 
-        // Add secondary service to allow client to discover with service _opentrickler._tcp.local
-        mdns_resp_add_service(&cyw43_state.netif[CYW43_ITF_STA], "app_httpd", "_opentrickler", DNSSD_PROTO_TCP, 80, srv_txt, NULL);
+        // Add secondary service to allow client to discover with service _openannealer._tcp.local
+        mdns_resp_add_service(&cyw43_state.netif[CYW43_ITF_STA], "app_httpd", "_openannealer", DNSSD_PROTO_TCP, 80, srv_txt, NULL);
         cyw43_arch_lwip_end();
 #if OTA_DEBUG_SERIAL
         printf("WIFI: mdns started\n");

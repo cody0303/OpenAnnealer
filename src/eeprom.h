@@ -7,7 +7,7 @@
 #include "http_rest.h"
 
 #define EEPROM_METADATA_BASE_ADDR               0 * 1024       // 0K
-#define EEPROM_SCALE_CONFIG_BASE_ADDR           1 * 1024       // 1K
+#define EEPROM_SCALE_CONFIG_BASE_ADDR           1 * 1024       // 1K - reserved/unused since Milestone 8 (scale subsystem removed); don't reuse this address for something else, to avoid stale data being misread after a non-OTA firmware update
 #define EEPROM_WIRELESS_CONFIG_BASE_ADDR        2 * 1024       // 2K
 #define EEPROM_MOTOR_CONFIG_BASE_ADDR           4 * 1024       // 4K
 #define EEPROM_ANNEAL_MODE_BASE_ADDR            5 * 1024       // 5K (reused from the removed charge_mode slot; differing struct shape/rev is caught by load_config's CRC check)
@@ -18,6 +18,8 @@
 #define EEPROM_SERVO_GATE_CONFIG_BASE_ADDR     10 * 1024       // 10k
 #define EEPROM_INDUCTION_HEATER_CONFIG_BASE_ADDR 11 * 1024     // 11k
 #define EEPROM_OTA_DATA_BASE_ADDR               12 * 1024      // 12k
+#define EEPROM_IR_TEMP_SENSOR_BASE_ADDR         13 * 1024      // 13k
+#define EEPROM_OTA_SETTINGS_BASE_ADDR           14 * 1024      // 14k - deliberately separate from EEPROM_OTA_DATA_BASE_ADDR (see ota_update.h)
 
 #define EEPROM_METADATA_REV                     2              // 16 byte 
 

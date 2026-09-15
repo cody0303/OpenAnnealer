@@ -8,12 +8,12 @@
 
 #include "app.h"
 #include "configuration.h"
-#include "scale.h"
 #include "display.h"
 #include "mini_12864_module.h"
 #include "eeprom.h"
 #include "anneal_mode.h"
-#include "cleanup_mode.h"
+#include "anneal_manual_mode.h"
+#include "anneal_calibration_mode.h"
 #include "eeprom.h"
 #include "wireless.h"
 #include "system_control.h"
@@ -40,7 +40,6 @@ static uint8_t menu_get_parent_form_id(uint8_t form_id) {
         case 20: return 1;
 
         case 30: return 1;
-        case 31: return 30;
         case 32: return 30;
         case 33: return 32;
         case 34: return 32;
@@ -49,12 +48,13 @@ static uint8_t menu_get_parent_form_id(uint8_t form_id) {
         case 36: return 30;
         case 37: return 30;
         case 39: return 30;
+        case 42: return 30;
+        case 43: return 30;
+        case 44: return 30;
 
         case 40: return 1;
         case 41: return 40;
 
-        case 51: return 31;
-        case 53: return 31;
         case 60: return 37;
         case 61: return 37;
 
@@ -114,13 +114,13 @@ void menu_task(void *p){
                 case APP_STATE_ENTER_ANNEAL_MODE_FROM_REST:
                     exit_form_id = anneal_mode_menu(true);
                     break;
-                case APP_STATE_ENTER_CLEANUP_MODE:
-                    exit_form_id = cleanup_mode_menu();
+                case APP_STATE_ENTER_MANUAL_MODE:
+                    exit_form_id = anneal_manual_mode_menu();
                     break;
-                case APP_STATE_ENTER_SCALE_CALIBRATION:
-                    exit_form_id = scale_calibrate_with_external_weight();
+                case APP_STATE_ENTER_CASE_CALIBRATION_MODE:
+                    exit_form_id = anneal_calibration_mode_menu();
                     break;
-                case APP_STATE_ENTER_EEPROM_SAVE: 
+                case APP_STATE_ENTER_EEPROM_SAVE:
                     exit_form_id = eeprom_save_all();
                     break;
                 case APP_STATE_ENTER_EEPROM_ERASE:
