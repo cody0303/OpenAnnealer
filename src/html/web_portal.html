@@ -43,10 +43,12 @@
 
             </div>
 
-            <!-- Temperature Mode (Milestone 11, optional IR sensor) -->
+            <!-- Time vs Temperature mode (Milestone 11, optional IR sensor). Only
+                 changeable before starting a batch - locked out while a cycle is
+                 running, see pollAnnealModeStatus()'s _setStartStopButtonWidget call. -->
             <div class="grid grid-cols-2 items-center px-4 gap-2">
                 <div>
-                    <span class="label-text">Temp Mode</span>
+                    <span class="label-text" id="tempModeLabel">Time Mode</span>
                 </div>
                 <div class="flex items-center justify-end gap-3">
                     <span id="tempModeReadoutValue" class="text-sm" style="display: none;">--.- C</span>
@@ -80,7 +82,12 @@
 
                     <div id="annealFaultAlert" role="alert" class="alert alert-warning" style="display: none;">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"></path></svg>
-                        <span>Induction heater safety cutoff triggered mid-dwell - the last case's heat time was cut short.</span>
+                        <span>Induction heater safety cutoff triggered before the dwell finished - the run was stopped. Check dwell time isn't configured longer than the coil's safety cutoff.</span>
+                    </div>
+
+                    <div id="tempTargetNotReachedAlert" role="alert" class="alert alert-warning" style="display: none;">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"></path></svg>
+                        <span>Target temperature was not reached before the coil's safety cutoff - the run was stopped. Check target temperature, sensor aiming/emissivity, and coil power.</span>
                     </div>
 
                     <div id="tempSensorFaultAlert" role="alert" class="alert alert-warning" style="display: none;">
@@ -630,15 +637,11 @@
 
                         <div class="divider"></div>
 
-                        <form id="irTempSensorConfigForm" action="/rest/ir_temp_sensor_config" class="grid grid-cols-1 gap-3">
-                            <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Enable Temperature Mode</span>
-                                <select class="select select-bordered" name="t0">
-                                    <option value="true">Yes</option>
-                                    <option value="false">No</option>
-                                </select>
-                            </div>
+                        <div role="alert" class="alert alert-info">
+                            <span>Time-vs-temperature mode is switched from the Anneal tab's front page, not here - this sensor always reads and reports its own health independent of that switch.</span>
+                        </div>
 
+                        <form id="irTempSensorConfigForm" action="/rest/ir_temp_sensor_config" class="grid grid-cols-1 gap-3">
                             <div class="grid grid-cols-2 gap-2">
                                 <div class="grid grid-cols-1 gap-1">
                                     <span class="label-text">SDA Pin</span>
@@ -908,6 +911,7 @@
         NO_EVENT: 1 << 0,
         INDUCTION_FAULT: 1 << 1,
         TEMP_SENSOR_FAULT: 1 << 2,
+        TEMP_TARGET_NOT_REACHED: 1 << 3,
     });
 
     const ServoGateState = Object.freeze({
@@ -921,6 +925,13 @@
     // Start an anneal cycle with the entered cycle count.
     function startAnnealCycle() {
         const cycleCount = document.getElementById("cycleCountInput").value || 0;
+
+        // Clear any fault banners left over from a previous run, so a fresh start
+        // doesn't look like it's still complaining about something that already
+        // happened last time.
+        ["annealFaultAlert", "tempTargetNotReachedAlert", "tempSensorFaultAlert"].forEach(id => {
+            document.getElementById(id).style.display = "none";
+        });
 
         const uri = `/rest/anneal_mode_state?s0=${encodeURIComponent(cycleCount)}&s2=${encodeURIComponent(AnnealModeState.HOLD)}`;
 
@@ -969,6 +980,11 @@
 
         startButton.disabled = isRunning;
         stopButton.disabled = !isRunning;
+
+        // Time-vs-temperature mode is only changeable before starting a batch - the
+        // server also silently ignores a change attempt mid-cycle (see c5 in
+        // http_rest_anneal_mode_config()), this just keeps the UI honest about it.
+        document.getElementById("tempModeToggle").disabled = isRunning;
     }
 
     function onProfileNameClicked() {
@@ -1075,6 +1091,11 @@
             if (anneal_event & AnnealModeEvent.TEMP_SENSOR_FAULT) {
                 tempFaultAlert.style.display = "flex";
             }
+
+            const tempTargetNotReachedAlert = document.getElementById("tempTargetNotReachedAlert");
+            if (anneal_event & AnnealModeEvent.TEMP_TARGET_NOT_REACHED) {
+                tempTargetNotReachedAlert.style.display = "flex";
+            }
         })
         .catch(error => {
             console.error("Error reading anneal mode status");
@@ -1122,11 +1143,18 @@
         .catch(() => {});
     }
 
+    function _setTempModeLabel(isTemp) {
+        document.getElementById("tempModeLabel").innerText = isTemp ? "Temp Mode" : "Time Mode";
+    }
+
     function onTempModeToggleChanged(event) {
-        const enabled = event.target.checked;
-        fetch(`/rest/ir_temp_sensor_config?t0=${encodeURIComponent(enabled)}&ee=true`)
+        const useTemp = event.target.checked;
+        _setTempModeLabel(useTemp);
+        // Server also refuses this mid-cycle (silently ignored) - the control is
+        // disabled client-side while running too, see _setStartStopButtonWidget().
+        fetch(`/rest/anneal_mode_config?c5=${encodeURIComponent(useTemp)}&ee=true`)
         .catch(error => {
-            console.error("Error updating temperature mode");
+            console.error("Error updating time/temperature mode");
         });
     }
 
@@ -1771,10 +1799,12 @@
             onNavButtonClicked('anneal');
             _refreshOtaFaultAlert();
 
-            fetch("/rest/ir_temp_sensor_config")
+            fetch("/rest/anneal_mode_config")
             .then(response => response.json())
             .then(data => {
-                document.getElementById("tempModeToggle").checked = (String(data["t0"]) === "true");
+                const useTemp = (String(data["c5"]) === "true");
+                document.getElementById("tempModeToggle").checked = useTemp;
+                _setTempModeLabel(useTemp);
             })
             .catch(() => {});
         });

@@ -34,6 +34,7 @@ const eeprom_anneal_mode_data_t default_anneal_mode_data = {
 
     .inter_cycle_delay_ms = 500,
     .cycle_count = 1,
+    .use_temperature_mode = false,
 
     .neopixel_ready_colour = RGB_COLOUR_GREEN,
     .neopixel_heating_colour = RGB_COLOUR_RED,
@@ -51,11 +52,25 @@ static char title_string[30];
 static TickType_t heat_start_tick = 0;
 static float last_heat_elapsed_seconds = 0.0f;
 
+// Set when the induction heater's own hardware safety timer force-cuts the coil
+// before a heat step finishes on its own terms - very likely to repeat identically on
+// every remaining case in the run (nothing about the profile changes between cases),
+// so this stops the whole batch after the current case finishes dropping normally
+// rather than silently feeding more cases into the same problem. Consumed (and reset)
+// by anneal_mode_cooldown(); also reset at the start of a fresh run in case a prior
+// run ended some other way without going through cooldown.
+static bool safety_limit_hit_last_case = false;
+
 typedef enum {
     ANNEAL_MODE_EVENT_NO_EVENT = (1 << 0),
-    ANNEAL_MODE_EVENT_INDUCTION_FAULT = (1 << 1),
-    ANNEAL_MODE_EVENT_TEMP_SENSOR_FAULT = (1 << 2),  // Sensor went unhealthy mid-heat (Milestone 11);
-                                                      // that case's heat fell back to pure time-based dwell
+    ANNEAL_MODE_EVENT_INDUCTION_FAULT = (1 << 1),          // Coil safety cutoff fired in time-based
+                                                            // mode - dwell_time_ms is very likely
+                                                            // configured longer than the heater's
+                                                            // own max_dwell_ms
+    ANNEAL_MODE_EVENT_TEMP_SENSOR_FAULT = (1 << 2),        // Sensor went unhealthy mid-heat; that
+                                                            // case's heat fell back to time-based dwell
+    ANNEAL_MODE_EVENT_TEMP_TARGET_NOT_REACHED = (1 << 3),  // Coil safety cutoff fired in temperature
+                                                            // mode - target_temp_c was never reached
 } AnnealModeEventBit_t;
 
 
@@ -112,12 +127,13 @@ void anneal_status_render_task(void *p) {
         }
         u8g2_DrawStr(display_handler, 5, 45, dwell_string);
 
-        // Bottom line: coil status plus a live temperature readout when Milestone 11's
-        // sensor is in use - combined into one line since the display has no room to
-        // spare for a dedicated row.
+        // Bottom line: coil status plus a live temperature readout whenever Milestone
+        // 11's sensor is physically present - shown regardless of whether the cycle is
+        // currently in time-based or temperature-based mode, combined into one line
+        // since the display has no room to spare for a dedicated row.
         char status_string[24];
         memset(status_string, 0x0, sizeof(status_string));
-        if (ir_temp_sensor_is_enabled()) {
+        if (ir_temp_sensor_is_present()) {
             if (ir_temp_sensor_is_initializing()) {
                 snprintf(status_string, sizeof(status_string), "Temp: init...");
             }
@@ -211,7 +227,9 @@ static void anneal_mode_heat(void) {
     induction_heater_enable(true);
 
     profile_t * profile = profile_get_selected();
-    bool use_temp_target = ir_temp_sensor_is_enabled() && profile->target_temp_c > 0.0f;
+    bool use_temp_target = anneal_mode_config.eeprom_anneal_mode_data.use_temperature_mode &&
+        ir_temp_sensor_is_present() && profile->target_temp_c > 0.0f;
+    const bool temp_mode_requested = use_temp_target;  // Immutable - see the safety-limit branch below
 
     // dwell_time_ms is a *time-mode* calibrated value (what Milestone 6's paint-based
     // calibration measures) - reusing it as a hard cap in temperature mode too would
@@ -233,12 +251,22 @@ static void anneal_mode_heat(void) {
             break;
         }
 
-        // If the induction heater's own safety timer force-cut the coil (e.g.
-        // dwell_time_ms configured longer than the heater's max_dwell_ms), stop
-        // waiting immediately and flag it rather than pretending the full dwell
-        // happened.
+        // The induction heater's own hardware safety timer force-cut the coil before
+        // this heat step finished on its own terms - in time-based mode that almost
+        // always means dwell_time_ms is configured longer than the heater's own
+        // max_dwell_ms; in temperature mode it means target_temp_c was never reached
+        // in time. Either way this is very likely to repeat identically on every
+        // remaining case in this run, so stop the whole batch (after this case still
+        // drops normally below) rather than silently feeding more cases into the same
+        // problem.
         if (!induction_heater_is_active()) {
-            anneal_mode_config.anneal_mode_event |= ANNEAL_MODE_EVENT_INDUCTION_FAULT;
+            if (temp_mode_requested) {
+                anneal_mode_config.anneal_mode_event |= ANNEAL_MODE_EVENT_TEMP_TARGET_NOT_REACHED;
+            }
+            else {
+                anneal_mode_config.anneal_mode_event |= ANNEAL_MODE_EVENT_INDUCTION_FAULT;
+            }
+            safety_limit_hit_last_case = true;
             break;
         }
 
@@ -299,6 +327,16 @@ static void anneal_mode_drop(void) {
 
 
 static void anneal_mode_cooldown(void) {
+    if (safety_limit_hit_last_case) {
+        // The case that just heated has already dropped normally (see
+        // anneal_mode_drop()) - this only stops the batch from continuing to feed and
+        // heat another one the same likely-to-fail way. See the comment where this
+        // flag is set in anneal_mode_heat().
+        safety_limit_hit_last_case = false;
+        anneal_mode_config.anneal_mode_state = ANNEAL_MODE_EXIT;
+        return;
+    }
+
     uint32_t target = anneal_mode_config.eeprom_anneal_mode_data.cycle_count;
     if (target != 0 && anneal_mode_config.cases_completed >= target) {
         anneal_mode_config.anneal_mode_state = ANNEAL_MODE_EXIT;
@@ -343,6 +381,9 @@ uint8_t anneal_mode_menu(bool anneal_mode_skip_user_input) {
 
     anneal_mode_config.cases_completed = 0;
     anneal_mode_config.anneal_mode_state = ANNEAL_MODE_HOLD;
+    safety_limit_hit_last_case = false;  // Belt-and-suspenders: a prior run that ended via
+                                          // RST (never reaching cooldown, which normally
+                                          // consumes this) shouldn't bleed into a new run.
 
     bool quit = false;
     while (!quit) {
@@ -411,6 +452,8 @@ bool http_rest_anneal_mode_config(struct fs_file *file, int num_params, char *pa
     // c2 (str): neopixel_ready_colour
     // c3 (str): neopixel_heating_colour
     // c4 (str): neopixel_fault_colour
+    // c5 (bool): use_temperature_mode - only applied while no cycle is running (silently
+    //            ignored mid-cycle, matching the web UI disabling the control while running)
     // ee (bool): save to eeprom
 
     static char json_buffer[256];
@@ -432,6 +475,11 @@ bool http_rest_anneal_mode_config(struct fs_file *file, int num_params, char *pa
         else if (strcmp(params[idx], "c4") == 0) {
             anneal_mode_config.eeprom_anneal_mode_data.neopixel_fault_colour._raw_colour = hex_string_to_decimal(values[idx]);
         }
+        else if (strcmp(params[idx], "c5") == 0) {
+            if (anneal_mode_config.anneal_mode_state == ANNEAL_MODE_EXIT) {
+                anneal_mode_config.eeprom_anneal_mode_data.use_temperature_mode = string_to_boolean(values[idx]);
+            }
+        }
         else if (strcmp(params[idx], "ee") == 0) {
             save_to_eeprom = string_to_boolean(values[idx]);
         }
@@ -444,13 +492,14 @@ bool http_rest_anneal_mode_config(struct fs_file *file, int num_params, char *pa
     snprintf(json_buffer,
              sizeof(json_buffer),
              "%s"
-             "{\"c0\":%lu,\"c1\":%lu,\"c2\":\"#%06lx\",\"c3\":\"#%06lx\",\"c4\":\"#%06lx\"}",
+             "{\"c0\":%lu,\"c1\":%lu,\"c2\":\"#%06lx\",\"c3\":\"#%06lx\",\"c4\":\"#%06lx\",\"c5\":%s}",
              http_json_header,
              anneal_mode_config.eeprom_anneal_mode_data.inter_cycle_delay_ms,
              anneal_mode_config.eeprom_anneal_mode_data.cycle_count,
              anneal_mode_config.eeprom_anneal_mode_data.neopixel_ready_colour._raw_colour,
              anneal_mode_config.eeprom_anneal_mode_data.neopixel_heating_colour._raw_colour,
-             anneal_mode_config.eeprom_anneal_mode_data.neopixel_fault_colour._raw_colour);
+             anneal_mode_config.eeprom_anneal_mode_data.neopixel_fault_colour._raw_colour,
+             boolean_to_string(anneal_mode_config.eeprom_anneal_mode_data.use_temperature_mode));
 
     size_t data_length = strlen(json_buffer);
     file->data = json_buffer;

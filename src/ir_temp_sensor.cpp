@@ -52,7 +52,6 @@ static ir_temp_sensor_t ir_temp_sensor;
 
 const eeprom_ir_temp_sensor_data_t default_ir_temp_sensor_data = {
     .ir_temp_sensor_data_rev = 0,
-    .enabled = false,
     .sda_pin = IR_TEMP_SENSOR_SDA_PIN_DEFAULT,
     .scl_pin = IR_TEMP_SENSOR_SCL_PIN_DEFAULT,
     .emissivity = 1.0f,     // Matches the MLX90614's own factory-default emissivity, so
@@ -257,19 +256,19 @@ bool ir_temp_sensor_config_save(void) {
 }
 
 
-bool ir_temp_sensor_is_enabled(void) {
-    return ir_temp_sensor.eeprom_ir_temp_sensor_data.enabled && ir_temp_sensor.sensor_present;
+bool ir_temp_sensor_is_present(void) {
+    return ir_temp_sensor.sensor_present;
 }
 
 
 bool ir_temp_sensor_is_initializing(void) {
-    return ir_temp_sensor_is_enabled() &&
+    return ir_temp_sensor_is_present() &&
         (ir_temp_sensor.object_temp_filter->getCounter() < ir_temp_sensor.eeprom_ir_temp_sensor_data.filter_window);
 }
 
 
 bool ir_temp_sensor_is_healthy(void) {
-    return ir_temp_sensor_is_enabled() &&
+    return ir_temp_sensor_is_present() &&
         !ir_temp_sensor_is_initializing() &&
         (ir_temp_sensor.consecutive_read_failures < IR_TEMP_SENSOR_MAX_CONSECUTIVE_FAILURES);
 }
@@ -287,23 +286,21 @@ float ir_temp_sensor_get_ambient_temp_c(void) {
 
 bool http_rest_ir_temp_sensor_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
     // Mappings:
-    // t0 (bool): enabled (global temperature-mode toggle)
     // t1 (int): sda_pin
     // t2 (int): scl_pin
     // t3 (float): emissivity (0.0-1.0)
     // t4 (float): offset_c
     // t5 (int): filter_window
     // ee (bool): save to eeprom
+    // (the time-vs-temperature mode switch lives on /rest/anneal_mode_config's c5
+    // instead - see eeprom_anneal_mode_data_t.use_temperature_mode)
 
     static char json_buffer[256];
     bool save_to_eeprom = false;
     bool filter_window_changed = false;
 
     for (int idx = 0; idx < num_params; idx += 1) {
-        if (strcmp(params[idx], "t0") == 0) {
-            ir_temp_sensor.eeprom_ir_temp_sensor_data.enabled = string_to_boolean(values[idx]);
-        }
-        else if (strcmp(params[idx], "t1") == 0) {
+        if (strcmp(params[idx], "t1") == 0) {
             ir_temp_sensor.eeprom_ir_temp_sensor_data.sda_pin = (uint8_t) atoi(values[idx]);
         }
         else if (strcmp(params[idx], "t2") == 0) {
@@ -335,9 +332,8 @@ bool http_rest_ir_temp_sensor_config(struct fs_file *file, int num_params, char 
     snprintf(json_buffer,
              sizeof(json_buffer),
              "%s"
-             "{\"t0\":%s,\"t1\":%d,\"t2\":%d,\"t3\":%0.4f,\"t4\":%0.2f,\"t5\":%d}",
+             "{\"t1\":%d,\"t2\":%d,\"t3\":%0.4f,\"t4\":%0.2f,\"t5\":%d}",
              http_json_header,
-             boolean_to_string(ir_temp_sensor.eeprom_ir_temp_sensor_data.enabled),
              ir_temp_sensor.eeprom_ir_temp_sensor_data.sda_pin,
              ir_temp_sensor.eeprom_ir_temp_sensor_data.scl_pin,
              ir_temp_sensor.eeprom_ir_temp_sensor_data.emissivity,

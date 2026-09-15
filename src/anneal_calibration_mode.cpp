@@ -135,7 +135,7 @@ uint8_t anneal_calibration_mode_menu() {
         // informational here, the paint colour change is still what actually ends
         // this run; the operator can use this to sanity-check against the paint.
         memset(line2, 0x0, sizeof(line2));
-        if (ir_temp_sensor_is_enabled()) {
+        if (ir_temp_sensor_is_present()) {
             if (ir_temp_sensor_is_healthy()) {
                 snprintf(line2, sizeof(line2), "Temp: %.1f C", ir_temp_sensor_get_object_temp_c());
             }

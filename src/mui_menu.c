@@ -238,8 +238,8 @@ uint8_t render_ir_temp_sensor_status(mui_t *ui, uint8_t msg) {
             u8g2_t *u8g2 = mui_get_U8g2(ui);
             u8g2_SetFont(u8g2, u8g2_font_profont11_tf);
 
-            if (!ir_temp_sensor_is_enabled()) {
-                u8g2_DrawStr(u8g2, 5, 25, "Disabled");
+            if (!ir_temp_sensor_is_present()) {
+                u8g2_DrawStr(u8g2, 5, 25, "Not Present");
                 break;
             }
 

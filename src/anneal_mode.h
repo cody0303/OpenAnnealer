@@ -7,7 +7,7 @@
 #include "neopixel_led.h"
 
 
-#define EEPROM_ANNEAL_MODE_DATA_REV                     2              // 16 byte - bumped: per-recipe fields moved to profile_t (Milestone 5)
+#define EEPROM_ANNEAL_MODE_DATA_REV                     3              // 16 byte - bumped: added use_temperature_mode (Milestone 11)
 
 // Values match chronological execution order (HOLD first: the holder must be in
 // position before a case is fed, not after - see anneal_mode_hold() for why). The
@@ -33,6 +33,13 @@ typedef struct {
     // Cycle
     uint32_t inter_cycle_delay_ms;  // Pause between cases
     uint32_t cycle_count;           // 0 = run until stopped
+
+    // Milestone 11: global time-vs-temperature mode switch for the anneal cycle (front
+    // page). Deliberately NOT a property of the IR temp sensor module itself - the
+    // sensor always reads/reports its own real health regardless of this switch, so a
+    // "not currently in temperature mode" state never looks like a sensor fault. Only
+    // changeable while no cycle is running - see http_rest_anneal_mode_config().
+    bool use_temperature_mode;
 
     // LED related settings
     rgbw_u32_t neopixel_ready_colour;

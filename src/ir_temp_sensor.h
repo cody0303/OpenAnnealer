@@ -5,16 +5,23 @@
 #include <stdbool.h>
 #include "http_rest.h"
 
-#define EEPROM_IR_TEMP_SENSOR_DATA_REV      0              // 16 byte
+#define EEPROM_IR_TEMP_SENSOR_DATA_REV      1              // 16 byte - bumped: removed `enabled` (the
+                                                            // time-vs-temperature mode switch now lives
+                                                            // in anneal_mode's own config instead - see
+                                                            // eeprom_anneal_mode_data_t.use_temperature_mode)
 
 // Non-contact IR thermometer (MLX90614) support for Milestone 11's optional
 // target-temperature annealing. Fully optional hardware: if the sensor doesn't ACK at
 // init, the feature disables itself in software (same degrade-gracefully pattern as
 // motors_init()) - nothing else in the firmware requires this to be populated.
+//
+// Deliberately has no "enabled" concept of its own: this module always probes, reads,
+// and reports its own real health whenever hardware is present, regardless of whether
+// the anneal cycle is currently in time-based or temperature-based mode. That mode
+// switch lives in anneal_mode's config instead - keeping it out of here means a
+// "not currently using temperature mode" state never gets mistaken for a sensor fault.
 typedef struct {
     uint16_t ir_temp_sensor_data_rev;
-    bool enabled;           // Global "use temperature" toggle (front page); per-profile
-                             // target_temp_c in profile.h is only consulted when this is on
     uint8_t sda_pin;
     uint8_t scl_pin;
     float emissivity;       // 0.0-1.0; written to the sensor's own onboard EEPROM only
@@ -34,16 +41,17 @@ extern "C" {
 bool ir_temp_sensor_init(void);
 bool ir_temp_sensor_config_save(void);
 
-// True only when the global toggle is on AND the sensor actually probed present at
-// init - callers (anneal_mode's heat state) should treat this as "use temperature
-// mode for this cycle", falling back to pure time-based dwell otherwise.
-bool ir_temp_sensor_is_enabled(void);
+// True once the sensor has ACK'd at init - the only thing this module tracks about
+// its own applicability. Callers that care about time-vs-temperature mode (anneal_mode)
+// combine this with their own mode switch instead of this module deciding it for them.
+bool ir_temp_sensor_is_present(void);
 
-// True when enabled and recent reads have been succeeding, AND the rolling filter has
-// collected at least one full window of samples. False here (while enabled) means
-// "trust the timer, not the temperature" for this cycle - see anneal_mode.cpp. This is
-// also false during the brief (filter_window * poll interval, well under a second by
-// default) startup window right after the sensor comes up - see
+// True when present and recent reads have been succeeding, AND the rolling filter has
+// collected at least one full window of samples. Always reflects real hardware health,
+// independent of whether anneal_mode is currently using temperature mode. False here
+// means "don't trust the current reading" - see anneal_mode.cpp for how it's used.
+// This is also false during the brief (filter_window * poll interval, well under a
+// second by default) startup window right after the sensor comes up - see
 // ir_temp_sensor_is_initializing() to tell that apart from a real fault.
 bool ir_temp_sensor_is_healthy(void);
 
