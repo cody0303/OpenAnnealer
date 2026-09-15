@@ -28,7 +28,19 @@ extern char second_line_buffer[32];
 extern char host_name[18];
 
 bool access_point_mode_start() {
-    char ap_password[] = "opentrickler";
+    // Per-board password derived from the device's own unique ID, not a fixed constant -
+    // every previously-deployed unit shared the exact same, publicly-documented AP
+    // password ("opentrickler"), meaning anyone who'd seen the source (or any other
+    // unit's fallback AP) could join any device's AP. The password is shown live on the
+    // LCD (second_line_buffer below) whenever the device is actually in AP mode, so an
+    // operator can always read it off the device itself - no need for it to be memorable
+    // or documented anywhere. Uses the full 8-char unique_id (not the 4-char slice used
+    // for the hostname/SSID suffix - see wireless.c) so the password can't be derived
+    // just from seeing the broadcast SSID; 8 chars also happens to be WPA2-PSK's minimum
+    // password length.
+    char ap_password[9];
+    eeprom_get_board_id(ap_password, 8);
+    ap_password[8] = '\0';
 
     cyw43_arch_enable_ap_mode(host_name, ap_password, CYW43_AUTH_WPA2_AES_PSK);
 
