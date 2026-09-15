@@ -23,11 +23,17 @@
             padding-bottom: 64px;
         }
 
-        /* Chrome (not Safari) intermittently misplaces position:fixed elements while its
-           address bar collapses/expands during scroll - promoting the nav to its own GPU
-           compositing layer works around it. */
+        /* Neither daisyUI's .navbar nor Tailwind's .sticky utility set a z-index, so the
+           settings page's sticky top navbar (the only position:sticky element in this file)
+           and this fixed bottom nav are both left at the default z-index:auto, with no
+           explicit rule deciding which one wins. Mobile Chrome's compositor has been observed
+           resolving that ambiguity in the sticky element's favor, rendering it over the fixed
+           nav instead of under it (reported: content covering the nav bar, specifically on the
+           System Control page - the only page with a sticky element). Giving the nav an
+           explicit z-index removes the ambiguity outright instead of relying on default
+           stacking/compositing order, which is the actual bug here. */
         .btm-nav {
-            transform: translateZ(0);
+            z-index: 50;
         }
     </style>
 </head>
