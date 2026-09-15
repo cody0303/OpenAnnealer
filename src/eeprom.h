@@ -19,6 +19,7 @@
 #define EEPROM_INDUCTION_HEATER_CONFIG_BASE_ADDR 11 * 1024     // 11k
 #define EEPROM_OTA_DATA_BASE_ADDR               12 * 1024      // 12k
 #define EEPROM_IR_TEMP_SENSOR_BASE_ADDR         13 * 1024      // 13k
+#define EEPROM_OTA_SETTINGS_BASE_ADDR           14 * 1024      // 14k - deliberately separate from EEPROM_OTA_DATA_BASE_ADDR (see ota_update.h)
 
 #define EEPROM_METADATA_REV                     2              // 16 byte 
 

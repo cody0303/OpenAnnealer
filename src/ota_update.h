@@ -14,6 +14,7 @@
 #define OTA_PARTITION_SIZE_BYTES        (1536u * 1024u)
 
 #define EEPROM_OTA_DATA_REV             1
+#define EEPROM_OTA_SETTINGS_REV         0
 
 typedef enum {
     OTA_RESULT_NONE = 0,        // no update has been attempted since this field was last valid
@@ -30,6 +31,26 @@ typedef struct {
     uint8_t  target_partition;   // which partition (0/1) that candidate was written to
     uint8_t  last_result;        // ota_result_t, persisted so REST can report it after a plain reboot
 } __attribute__((packed)) eeprom_ota_data_t;
+
+// Deliberately a SEPARATE EEPROM slot/struct from eeprom_ota_data_t above, not just another
+// field on it. eeprom_ota_data_t's update_pending/target_partition are written by the OLD
+// firmware immediately before it triggers a reboot into a new candidate, specifically so
+// the NEW firmware can read them back and recognise "I'm the fresh candidate, don't confirm
+// until proven stable" (see ota_update_init()). A rev bump on that struct makes load_config()
+// discard that just-written state as a schema mismatch, so the new candidate never arms its
+// health-check/confirm logic and never calls rom_explicit_buy() - it sits as a permanently
+// tentative TBYB image, and the next reboot for ANY reason rolls it back. Learned this the
+// hard way: adding debug_mode directly to eeprom_ota_data_t (and bumping its rev) caused
+// exactly this - a real, silent rollback on real hardware. debug_mode has nothing to do with
+// that transition's bookkeeping, so it lives in its own slot that can be freely
+// versioned/extended without ever touching the update_pending continuity requirement.
+typedef struct {
+    uint16_t ota_settings_rev;
+    bool     debug_mode;         // must be true for httpd_post_begin() to accept an /ota_upload -
+                                  // off by default so a non-technical end user can't stumble into a
+                                  // confusing/risky firmware upload; persists across reboots so a
+                                  // maintainer doesn't have to re-enable it after every single update
+} __attribute__((packed)) eeprom_ota_settings_t;
 
 #ifdef __cplusplus
 extern "C" {

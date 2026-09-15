@@ -712,7 +712,20 @@
                                 <button type="button" class="btn btn-sm" onclick="otaAcknowledgeFault()">Acknowledge</button>
                             </div>
 
-                            <div class="grid grid-cols-1 gap-2">
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Debug Mode (required to upload new firmware)</span>
+                                <select class="select select-bordered" id="otaDebugModeSelect" onchange="onOtaDebugModeChanged()">
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+
+                            <div id="otaUploadDisabledNotice" role="alert" class="alert" style="display: none;">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"></path></svg>
+                                <span>Firmware upload is off. Turn on Debug Mode above to upload new firmware.</span>
+                            </div>
+
+                            <div id="otaUploadSection" class="grid grid-cols-1 gap-2" style="display: none;">
                                 <span class="label-text">Upload New Firmware (.uf2/.bin, TBYB + versioned build)</span>
                                 <input type="file" id="otaFileInput" class="file-input file-input-bordered w-full">
                                 <button type="button" class="btn btn-primary" id="otaUploadBtn" onclick="otaUploadFirmware()">Upload & Update</button>
@@ -1361,26 +1374,45 @@
         }
 
         if (sectionId === "settings-system-control") {
-            _refreshOtaFaultAlert();
+            _refreshOtaStatus();
         }
     }
 
-    // Shows/hides the "update rolled back" alert on the System Control page based on
-    // the OTA module's fault flag (not part of /rest/system_control's plain key-value
-    // fields, so this is a separate fetch rather than piggybacking on the populate
-    // logic above).
-    function _refreshOtaFaultAlert() {
+    // Shows/hides the "update rolled back" alert and the Debug Mode / firmware upload
+    // controls on the System Control page, all driven by /rest/ota_update rather than
+    // /rest/system_control's plain key-value fields, so this is a separate fetch
+    // rather than piggybacking on the generic populate logic above.
+    function _refreshOtaStatus() {
         fetch("/rest/ota_update")
         .then(response => response.json())
         .then(data => {
             document.getElementById("otaFaultAlert").style.display = data.fault ? "flex" : "none";
+
+            document.getElementById("otaDebugModeSelect").value = data.debug_mode ? "true" : "false";
+            document.getElementById("otaUploadSection").style.display = data.debug_mode ? "grid" : "none";
+            document.getElementById("otaUploadDisabledNotice").style.display = data.debug_mode ? "none" : "flex";
         })
         .catch(() => {});
     }
 
     function otaAcknowledgeFault() {
         fetch("/rest/ota_update?ack=true")
-        .then(() => _refreshOtaFaultAlert());
+        .then(() => _refreshOtaStatus());
+    }
+
+    // Debug Mode gates whether /ota_upload accepts anything at all (enforced
+    // server-side in httpd_post_begin(), not just hidden here) - off by default so a
+    // non-technical end user can't stumble into a confusing/risky firmware upload,
+    // while still letting a maintainer turn it on remotely from the browser when
+    // actually needed. Persists across reboots (including the one a successful
+    // update itself triggers), so it doesn't need re-enabling after every update.
+    function onOtaDebugModeChanged() {
+        const value = document.getElementById("otaDebugModeSelect").value;
+        fetch(`/rest/ota_update?dbg=${encodeURIComponent(value)}`)
+        .then(() => _refreshOtaStatus())
+        .catch(error => {
+            console.error("Error updating debug mode");
+        });
     }
 
     // Uploads the selected firmware file as a raw POST body to /ota_upload (handled
@@ -1838,7 +1870,7 @@
     else {
         document.addEventListener('DOMContentLoaded', function() {
             onNavButtonClicked('anneal');
-            _refreshOtaFaultAlert();
+            _refreshOtaStatus();
 
             fetch("/rest/anneal_mode_config")
             .then(response => response.json())
