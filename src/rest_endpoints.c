@@ -16,6 +16,7 @@
 #include "system_control.h"
 #include "induction_heater.h"
 #include "ota_update.h"
+#include "ir_temp_sensor.h"
 
 // Generated headers by html2header.py under scripts
 #include "display_mirror.html.h"
@@ -101,6 +102,8 @@ bool rest_endpoints_init(bool default_wizard) {
     rest_register_handler("/rest/induction_heater_config", http_rest_induction_heater_config);
     rest_register_handler("/rest/induction_heater_state", http_rest_induction_heater_state);
     rest_register_handler("/rest/ota_update", http_rest_ota_update);
+    rest_register_handler("/rest/ir_temp_sensor_config", http_rest_ir_temp_sensor_config);
+    rest_register_handler("/rest/ir_temp_sensor_state", http_rest_ir_temp_sensor_state);
     rest_register_handler("/display_buffer", http_get_display_buffer);
     rest_register_handler("/display_mirror", http_display_mirror);
 

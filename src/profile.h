@@ -9,7 +9,7 @@
 #define PROFILE_NAME_MAX_LEN    16
 #define MAX_PROFILE_CNT         8
 
-#define EEPROM_PROFILE_DATA_REV             3           // 16 bit - bumped: holder_hold_ratio removed (holder is now a fixed-position swing arm with a manual per-case-length adjustment nut, not a per-profile servo angle)
+#define EEPROM_PROFILE_DATA_REV             4           // 16 bit - bumped: added target_temp_c (Milestone 11)
 
 typedef struct
 {
@@ -27,8 +27,14 @@ typedef struct
     uint32_t feed_run_time_ms;   // How long to run the feeder at feed_speed_rps to advance one case
     float feed_speed_rps;
     uint32_t pre_heat_settle_ms; // Let the holder finish moving before enabling the coil
-    uint32_t dwell_time_ms;      // Heat time; must be <= the induction heater's max_dwell_ms
+    uint32_t dwell_time_ms;      // Heat time; must be <= the induction heater's max_dwell_ms.
+                                 // Acts as a hard safety-cap timeout even when target_temp_c
+                                 // is in use (Milestone 11) - never removed in temperature mode.
     uint32_t post_heat_delay_ms; // Let the coil fully de-energize before dropping
+    float target_temp_c;        // Optional target object temperature (Milestone 11). Only
+                                 // consulted when the IR temp sensor's global toggle is on;
+                                 // 0 or the sensor being disabled/unhealthy means pure
+                                 // time-based dwell for this profile.
 } profile_t;
 
 

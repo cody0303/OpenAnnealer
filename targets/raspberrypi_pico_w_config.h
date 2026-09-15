@@ -42,7 +42,15 @@
 #define SPARE_MOTOR_DIR_PIN 7
 
 // GPIO 0/1 (formerly SCALE_UART) are free since the scale subsystem was removed
-// (Milestone 8) - available for a future sensor, e.g. Milestone 11's I2C temp sensor.
+// (Milestone 8) - used below for Milestone 11's I2C temp sensor.
+
+// IR temperature sensor (MLX90614) - on its own I2C bus (i2c0), separate from the
+// EEPROM's i2c1, so a sensor fault/bus lockup can't affect EEPROM access. Pins are
+// also runtime-configurable (see ir_temp_sensor.h); these are only the EEPROM-seeded
+// defaults for a first boot.
+#define IR_TEMP_SENSOR_I2C i2c0
+#define IR_TEMP_SENSOR_SDA_PIN_DEFAULT 0
+#define IR_TEMP_SENSOR_SCL_PIN_DEFAULT 1
 
 #define EEPROM_I2C i2c1
 #define EEPROM_SDA_PIN 10

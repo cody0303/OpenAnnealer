@@ -19,6 +19,7 @@
 #include "neopixel_led.h"
 #include "common.h"
 #include "profile.h"
+#include "ir_temp_sensor.h"
 
 
 uint8_t anneal_cycle_count_digits[] = {0, 0, 0, 0, 0};
@@ -53,6 +54,8 @@ static float last_heat_elapsed_seconds = 0.0f;
 typedef enum {
     ANNEAL_MODE_EVENT_NO_EVENT = (1 << 0),
     ANNEAL_MODE_EVENT_INDUCTION_FAULT = (1 << 1),
+    ANNEAL_MODE_EVENT_TEMP_SENSOR_FAULT = (1 << 2),  // Sensor went unhealthy mid-heat (Milestone 11);
+                                                      // that case's heat fell back to pure time-based dwell
 } AnnealModeEventBit_t;
 
 
@@ -109,8 +112,29 @@ void anneal_status_render_task(void *p) {
         }
         u8g2_DrawStr(display_handler, 5, 45, dwell_string);
 
-        if (induction_heater_is_active()) {
-            u8g2_DrawStr(display_handler, 5, 60, "COIL ON");
+        // Bottom line: coil status plus a live temperature readout when Milestone 11's
+        // sensor is in use - combined into one line since the display has no room to
+        // spare for a dedicated row.
+        char status_string[24];
+        memset(status_string, 0x0, sizeof(status_string));
+        if (ir_temp_sensor_is_enabled()) {
+            if (ir_temp_sensor_is_initializing()) {
+                snprintf(status_string, sizeof(status_string), "Temp: init...");
+            }
+            else if (!ir_temp_sensor_is_healthy()) {
+                snprintf(status_string, sizeof(status_string), "Temp: FAULT");
+            }
+            else {
+                snprintf(status_string, sizeof(status_string), "%.1fC%s",
+                         ir_temp_sensor_get_object_temp_c(),
+                         induction_heater_is_active() ? " COIL ON" : "");
+            }
+        }
+        else if (induction_heater_is_active()) {
+            snprintf(status_string, sizeof(status_string), "COIL ON");
+        }
+        if (strlen(status_string)) {
+            u8g2_DrawStr(display_handler, 5, 60, status_string);
         }
 
         u8g2_SendBuffer(display_handler);
@@ -186,8 +210,13 @@ static void anneal_mode_heat(void) {
 
     induction_heater_enable(true);
 
-    TickType_t stop_tick = xTaskGetTickCount() + pdMS_TO_TICKS(profile_get_selected()->dwell_time_ms);
+    profile_t * profile = profile_get_selected();
+    TickType_t stop_tick = xTaskGetTickCount() + pdMS_TO_TICKS(profile->dwell_time_ms);
     bool aborted = false;
+
+    // Milestone 11: dwell_time_ms (stop_tick above) remains a hard safety-cap timeout
+    // regardless - target-temp mode can only END heating EARLY, never extend past it.
+    bool use_temp_target = ir_temp_sensor_is_enabled() && profile->target_temp_c > 0.0f;
 
     while (xTaskGetTickCount() < stop_tick) {
         ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
@@ -203,6 +232,21 @@ static void anneal_mode_heat(void) {
         if (!induction_heater_is_active()) {
             anneal_mode_config.anneal_mode_event |= ANNEAL_MODE_EVENT_INDUCTION_FAULT;
             break;
+        }
+
+        if (use_temp_target) {
+            if (ir_temp_sensor_is_healthy()) {
+                if (ir_temp_sensor_get_object_temp_c() >= profile->target_temp_c) {
+                    break;
+                }
+            }
+            else {
+                // Sensor faulted mid-heat (or is still in its brief initializing
+                // window) - don't guess off a reading we can't currently trust. Flag
+                // it and fall back to the fixed dwell_time_ms for this case.
+                anneal_mode_config.anneal_mode_event |= ANNEAL_MODE_EVENT_TEMP_SENSOR_FAULT;
+                use_temp_target = false;
+            }
         }
 
         vTaskDelay(pdMS_TO_TICKS(20));

@@ -4,22 +4,29 @@
 // TODO: Integrate CMSIS DSP for core algorithm
 
 float FloatRingBuffer::getSd(void){
+    if (count == 0) {
+        return 0.0f;
+    }
+
     double sum = getSum();
-    float mean = sum / buffer_size;
+    float mean = sum / count;
     double sum_of_sqre = 0.0;
 
-    for (size_t idx=0; idx<buffer_size; idx++){
+    for (size_t idx=0; idx<count; idx++){
         sum_of_sqre += pow(data[idx] - mean, 2);
     }
 
-    float sd = sqrt(sum_of_sqre / buffer_size);
-    
+    float sd = sqrt(sum_of_sqre / count);
+
     return sd;
 }
 
 double FloatRingBuffer::getSum(){
+    // Only the first `count` slots are ever written (see enqueue()) - averaging over
+    // buffer_size instead would pull in uninitialized memory before the buffer fills
+    // for the first time after boot.
     double sum = 0.0;
-    for (size_t idx=0; idx<buffer_size; idx++){
+    for (size_t idx=0; idx<count; idx++){
         sum += data[idx];
     }
 
@@ -27,8 +34,12 @@ double FloatRingBuffer::getSum(){
 }
 
 float FloatRingBuffer::getMean(void){
+    if (count == 0) {
+        return 0.0f;
+    }
+
     double sum = getSum();
-    float mean = sum / buffer_size;
+    float mean = sum / count;
 
     return mean;
 }

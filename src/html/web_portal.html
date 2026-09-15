@@ -43,6 +43,17 @@
 
             </div>
 
+            <!-- Temperature Mode (Milestone 11, optional IR sensor) -->
+            <div class="grid grid-cols-2 items-center px-4 gap-2">
+                <div>
+                    <span class="label-text">Temp Mode</span>
+                </div>
+                <div class="flex items-center justify-end gap-3">
+                    <span id="tempModeReadoutValue" class="text-sm" style="display: none;">--.- C</span>
+                    <input type="checkbox" id="tempModeToggle" class="toggle toggle-primary" onchange="onTempModeToggleChanged(event)" />
+                </div>
+            </div>
+
             <!-- Anneal Cycle Control -->
             <section id="sectionAnnealCycleMode">
                 <div class="grid grid-cols-1 gap-2 px-4">
@@ -70,6 +81,11 @@
                     <div id="annealFaultAlert" role="alert" class="alert alert-warning" style="display: none;">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"></path></svg>
                         <span>Induction heater safety cutoff triggered mid-dwell - the last case's heat time was cut short.</span>
+                    </div>
+
+                    <div id="tempSensorFaultAlert" role="alert" class="alert alert-warning" style="display: none;">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"></path></svg>
+                        <span>Temperature sensor faulted mid-heat - the last case fell back to its fixed dwell time instead of a temperature target.</span>
                     </div>
                 </div>
             </section>
@@ -207,6 +223,11 @@
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Post-Heat Delay (ms)</span>
                                 <input type="number" class="input input-bordered" name="p7" step="1" min="0">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Target Temperature (C, 0 = time-based only)</span>
+                                <input type="number" class="input input-bordered" name="p9" step="1" min="0">
                             </div>
 
                             <button class="btn btn-neutral settings-apply-btn">Apply</button>
@@ -589,6 +610,65 @@
                         </form>
                     </section>
 
+                    <!-- IR Temperature Sensor Settings (Milestone 11) -->
+                    <section class="settings-page" id="settings-temp-sensor" name="Temperature Sensor" style="display: none;">
+                        <div role="alert" class="alert">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="h-6 w-6 shrink-0 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            <span>Optional MLX90614 non-contact IR sensor. Fully optional hardware - if it isn't wired up, this stays disabled and the anneal cycle falls back to pure time-based dwell.</span>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2 py-2">
+                            <div class="stat p-2">
+                                <div class="stat-title">Status</div>
+                                <div id="tempSensorStatusValue" class="stat-value text-lg">-</div>
+                            </div>
+                            <div class="stat p-2 text-right">
+                                <div class="stat-title">Object / Ambient</div>
+                                <div id="tempSensorReadingValue" class="stat-value text-lg">--.- / --.- C</div>
+                            </div>
+                        </div>
+
+                        <div class="divider"></div>
+
+                        <form id="irTempSensorConfigForm" action="/rest/ir_temp_sensor_config" class="grid grid-cols-1 gap-3">
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Enable Temperature Mode</span>
+                                <select class="select select-bordered" name="t0">
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2">
+                                <div class="grid grid-cols-1 gap-1">
+                                    <span class="label-text">SDA Pin</span>
+                                    <input type="number" class="input input-bordered" name="t1" step="1" min="0" max="28">
+                                </div>
+                                <div class="grid grid-cols-1 gap-1">
+                                    <span class="label-text">SCL Pin</span>
+                                    <input type="number" class="input input-bordered" name="t2" step="1" min="0" max="28">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Emissivity (0.0 - 1.0)</span>
+                                <input type="number" class="input input-bordered" name="t3" step="0.01" min="0" max="1">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Offset (C)</span>
+                                <input type="number" class="input input-bordered" name="t4" step="0.1">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Filter Window (samples)</span>
+                                <input type="number" class="input input-bordered" name="t5" step="1" min="1" max="10">
+                            </div>
+
+                            <button class="btn btn-neutral settings-apply-btn">Apply</button>
+                        </form>
+                    </section>
+
                     <!-- System Control Page -->
                     <section class="settings-page" id="settings-system-control" name="System Control" style="display: none;">
                         <form id="systemControlForm" action="/rest/system_control" class="grid grid-cols-1 gap-3">
@@ -701,6 +781,7 @@
                     <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-mini-12864-module')">Mini 12864 Module</a></li>
                     <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-servo-gate')">Case Holder Servo</a></li>
                     <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-induction-heater')">Induction Heater</a></li>
+                    <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-temp-sensor')">Temperature Sensor</a></li>
                     <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-system-control')">System Control</a></li>
                 </ul>
             </div>
@@ -826,6 +907,7 @@
     const AnnealModeEvent = Object.freeze({
         NO_EVENT: 1 << 0,
         INDUCTION_FAULT: 1 << 1,
+        TEMP_SENSOR_FAULT: 1 << 2,
     });
 
     const ServoGateState = Object.freeze({
@@ -988,6 +1070,11 @@
             if (anneal_event & AnnealModeEvent.INDUCTION_FAULT) {
                 faultAlert.style.display = "flex";
             }
+
+            const tempFaultAlert = document.getElementById("tempSensorFaultAlert");
+            if (anneal_event & AnnealModeEvent.TEMP_SENSOR_FAULT) {
+                tempFaultAlert.style.display = "flex";
+            }
         })
         .catch(error => {
             console.error("Error reading anneal mode status");
@@ -997,6 +1084,50 @@
             clearTimeout(pollSetTimeoutId);
             pollSetTimeoutId = setTimeout(pollAnnealModeStatus, 500);
         })
+
+        _pollTempSensorStatus();
+    }
+
+    // Piggybacks on the same poll cadence as pollAnnealModeStatus() rather than
+    // running its own interval. Drives both the front-page toggle/readout and (when
+    // that settings page happens to be open) its live status/reading.
+    function _pollTempSensorStatus() {
+        fetch("/rest/ir_temp_sensor_state")
+        .then(response => response.json())
+        .then(data => {
+            const present = data["s0"];
+            const healthy = data["s1"];
+            const objectTemp = data["s2"];
+            const ambientTemp = data["s3"];
+            const initializing = data["s4"];
+
+            const readout = document.getElementById("tempModeReadoutValue");
+            if (present) {
+                readout.style.display = "inline";
+                readout.textContent = initializing ? "init..." : (healthy ? `${objectTemp.toFixed(1)} C` : "FAULT");
+            }
+            else {
+                readout.style.display = "none";
+            }
+
+            const statusEl = document.getElementById("tempSensorStatusValue");
+            const readingEl = document.getElementById("tempSensorReadingValue");
+            if (statusEl) {
+                statusEl.textContent = !present ? "Not Present" : (initializing ? "Initializing" : (healthy ? "OK" : "Fault"));
+            }
+            if (readingEl) {
+                readingEl.textContent = present ? `${objectTemp.toFixed(1)} / ${ambientTemp.toFixed(1)} C` : "--.- / --.- C";
+            }
+        })
+        .catch(() => {});
+    }
+
+    function onTempModeToggleChanged(event) {
+        const enabled = event.target.checked;
+        fetch(`/rest/ir_temp_sensor_config?t0=${encodeURIComponent(enabled)}&ee=true`)
+        .catch(error => {
+            console.error("Error updating temperature mode");
+        });
     }
 
 
@@ -1530,6 +1661,7 @@
             "/rest/wireless_config",
             "/rest/neopixel_led_config",
             "/rest/induction_heater_config",
+            "/rest/ir_temp_sensor_config",
             "/rest/profile_config?pf=0",
             "/rest/profile_config?pf=1",
             "/rest/profile_config?pf=2",
@@ -1635,7 +1767,17 @@
         onNavButtonClicked('anneal');
     }
     else {
-        document.addEventListener('DOMContentLoaded', function() {onNavButtonClicked('anneal'); _refreshOtaFaultAlert();});
+        document.addEventListener('DOMContentLoaded', function() {
+            onNavButtonClicked('anneal');
+            _refreshOtaFaultAlert();
+
+            fetch("/rest/ir_temp_sensor_config")
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById("tempModeToggle").checked = (String(data["t0"]) === "true");
+            })
+            .catch(() => {});
+        });
     }
 
 </script>

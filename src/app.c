@@ -28,6 +28,7 @@
 #include "servo_gate.h"
 #include "induction_heater.h"
 #include "ota_update.h"
+#include "ir_temp_sensor.h"
 
 
 // Boot-order tracing for the OTA_DEBUG_SERIAL build (see CMakeLists.txt) - traces
@@ -80,6 +81,10 @@ int main()
 
     // Initialize the induction heater trigger
     induction_heater_init();
+
+    // Optional IR temp sensor (Milestone 11) - on its own I2C bus, fully non-fatal if
+    // not populated (see ir_temp_sensor_init()'s own probe/degrade logic).
+    ir_temp_sensor_init();
 
     // Initialize anneal mode settings
     anneal_mode_config_init();

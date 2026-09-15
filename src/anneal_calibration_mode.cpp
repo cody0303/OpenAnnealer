@@ -14,6 +14,7 @@
 #include "profile.h"
 #include "anneal_calibration_mode.h"
 #include "common.h"
+#include "ir_temp_sensor.h"
 
 extern QueueHandle_t encoder_event_queue;
 extern AppState_t exit_state;
@@ -129,6 +130,19 @@ uint8_t anneal_calibration_mode_menu() {
 
         float elapsed_seconds = (float)((xTaskGetTickCount() - heat_start_tick) * portTICK_PERIOD_MS) / 1000.0f;
         snprintf(line1, sizeof(line1), "Time: %.1f s", elapsed_seconds);
+
+        // Optional live temperature alongside the stopwatch (Milestone 11) - purely
+        // informational here, the paint colour change is still what actually ends
+        // this run; the operator can use this to sanity-check against the paint.
+        memset(line2, 0x0, sizeof(line2));
+        if (ir_temp_sensor_is_enabled()) {
+            if (ir_temp_sensor_is_healthy()) {
+                snprintf(line2, sizeof(line2), "Temp: %.1f C", ir_temp_sensor_get_object_temp_c());
+            }
+            else {
+                strcpy(line2, "Temp: --");
+            }
+        }
 
         vTaskDelay(pdMS_TO_TICKS(20));
     }

@@ -14,6 +14,12 @@
 #include "profile.h"
 #include "servo_gate.h"
 #include "induction_heater.h"
+#include "ir_temp_sensor.h"
+
+// mui.h (vendored, library/u8g2) only pre-defines form-jump macros up to MUI_43 -
+// added here rather than editing third-party code, matching its own encoding exactly
+// (the byte value equals the form number).
+#define MUI_44 "\x2c"
 
 
 // External modules/varaibles
@@ -220,6 +226,47 @@ uint8_t render_induction_heater_pulse_button(mui_t * ui, uint8_t msg) {
 }
 
 
+// Read-only live status for Milestone 11's optional IR temp sensor. Pin/emissivity/
+// offset/filter configuration is REST/web-only (matching how every other module's
+// pin-level config already works in this codebase - see mui_menu.c's own history),
+// this screen just shows whether it's present/healthy and the live reading.
+uint8_t render_ir_temp_sensor_status(mui_t *ui, uint8_t msg) {
+    switch (msg) {
+        case MUIF_MSG_DRAW:
+        {
+            char buf[30];
+            u8g2_t *u8g2 = mui_get_U8g2(ui);
+            u8g2_SetFont(u8g2, u8g2_font_profont11_tf);
+
+            if (!ir_temp_sensor_is_enabled()) {
+                u8g2_DrawStr(u8g2, 5, 25, "Disabled");
+                break;
+            }
+
+            if (ir_temp_sensor_is_initializing()) {
+                u8g2_DrawStr(u8g2, 5, 25, "Initializing...");
+                break;
+            }
+
+            if (!ir_temp_sensor_is_healthy()) {
+                u8g2_DrawStr(u8g2, 5, 25, "SENSOR FAULT");
+                break;
+            }
+
+            snprintf(buf, sizeof(buf), "Object:%.1f C", ir_temp_sensor_get_object_temp_c());
+            u8g2_DrawStr(u8g2, 5, 25, buf);
+
+            memset(buf, 0x0, sizeof(buf));
+            snprintf(buf, sizeof(buf), "Ambient:%.1f C", ir_temp_sensor_get_ambient_temp_c());
+            u8g2_DrawStr(u8g2, 5, 37, buf);
+
+            break;
+        }
+    }
+    return 0;
+}
+
+
 muif_t muif_list[] = {
         /* normal text style */
         MUIF_U8G2_FONT_STYLE(0, u8g2_font_helvR08_tr),
@@ -258,6 +305,9 @@ muif_t muif_list[] = {
 
         // Induction heater bench-test pulse button
         MUIF_BUTTON("IH", render_induction_heater_pulse_button),
+
+        // IR temp sensor live status (Milestone 11)
+        MUIF_RO("TS", render_ir_temp_sensor_status),
 
         // input for a number between 0 to 9 //
         MUIF_U8G2_U8_MIN_MAX("N4", &anneal_cycle_count_digits[4], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
@@ -361,6 +411,7 @@ fds_t fds_data[] = {
         MUI_32 "Profile Manager|"
         MUI_42 "Induction Heater|"
         MUI_43 "Calibrate Dwell|"
+        MUI_44 "Temp Sensor|"
         MUI_39 "Case Holder|"
         MUI_37 "EEPROM|"
         MUI_35 "Reboot|"
@@ -528,6 +579,17 @@ fds_t fds_data[] = {
     MUI_STYLE(0)
     MUI_XYAT("BN",14, 59, 30, "Back")
     MUI_XYAT("LV", 115, 59, 11, "Next")  // APP_STATE_ENTER_CASE_CALIBRATION_MODE
+
+    // IR temp sensor status (Milestone 11) - read-only; pin/emissivity/offset/filter
+    // config is REST/web-only, matching every other module's pin-level config.
+    MUI_FORM(44)
+    MUI_STYLE(1)
+    MUI_LABEL(5, 10, "Temp Sensor")
+    MUI_XY("HL", 0,13)
+
+    MUI_STYLE(0)
+    MUI_XY("TS", 5, 25)
+    MUI_XYAT("BN", 64, 59, 30, " OK ")  // Jump to form 30
 
 
     // Save to EEPROM

@@ -18,6 +18,7 @@
 #define EEPROM_SERVO_GATE_CONFIG_BASE_ADDR     10 * 1024       // 10k
 #define EEPROM_INDUCTION_HEATER_CONFIG_BASE_ADDR 11 * 1024     // 11k
 #define EEPROM_OTA_DATA_BASE_ADDR               12 * 1024      // 12k
+#define EEPROM_IR_TEMP_SENSOR_BASE_ADDR         13 * 1024      // 13k
 
 #define EEPROM_METADATA_REV                     2              // 16 byte 
 

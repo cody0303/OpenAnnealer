@@ -117,6 +117,7 @@ bool http_rest_profile_config(struct fs_file *file, int num_params, char *params
     // p5 (int): pre_heat_settle_ms
     // p6 (int): dwell_time_ms
     // p7 (int): post_heat_delay_ms
+    // p9 (float): target_temp_c (Milestone 11; p8 was holder_hold_ratio, retired)
     // ee (bool): save to eeprom
     static char buf[256];
 
@@ -164,6 +165,9 @@ bool http_rest_profile_config(struct fs_file *file, int num_params, char *params
             else if (strcmp(params[idx], "p7") == 0) {
                 current_profile->post_heat_delay_ms = strtoul(values[idx], NULL, 10);
             }
+            else if (strcmp(params[idx], "p9") == 0) {
+                current_profile->target_temp_c = strtof(values[idx], NULL);
+            }
             else if (strcmp(params[idx], "ee") == 0) {
                 save_to_eeprom = string_to_boolean(values[idx]);
             }
@@ -177,7 +181,7 @@ bool http_rest_profile_config(struct fs_file *file, int num_params, char *params
         // Response
         snprintf(buf, sizeof(buf),
                  "%s"
-                 "{\"pf\":%d,\"p0\":%ld,\"p1\":%ld,\"p2\":\"%s\",\"p3\":%lu,\"p4\":%0.3f,\"p5\":%lu,\"p6\":%lu,\"p7\":%lu}",
+                 "{\"pf\":%d,\"p0\":%ld,\"p1\":%ld,\"p2\":\"%s\",\"p3\":%lu,\"p4\":%0.3f,\"p5\":%lu,\"p6\":%lu,\"p7\":%lu,\"p9\":%0.2f}",
                  http_json_header,
                  profile_idx,
                  current_profile->rev,
@@ -187,7 +191,8 @@ bool http_rest_profile_config(struct fs_file *file, int num_params, char *params
                  current_profile->feed_speed_rps,
                  current_profile->pre_heat_settle_ms,
                  current_profile->dwell_time_ms,
-                 current_profile->post_heat_delay_ms);
+                 current_profile->post_heat_delay_ms,
+                 current_profile->target_temp_c);
     }
 
     size_t response_len = strlen(buf);
