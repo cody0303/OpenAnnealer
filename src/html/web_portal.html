@@ -1746,22 +1746,45 @@
     // Safari (doesn't have this bug), but harmless there too since the computed offset is
     // just 0 when the visual and layout viewports already match.
     (function() {
-        if (!window.visualViewport) {
-            return;
-        }
         const btmNav = document.querySelector('.btm-nav');
         if (!btmNav) {
             return;
         }
 
-        function fixBtmNavPosition() {
-            const vv = window.visualViewport;
-            const offset = window.innerHeight - (vv.height + vv.offsetTop);
-            btmNav.style.transform = offset > 0 ? `translateY(-${offset}px)` : '';
+        // Temporary diagnostic overlay (?debug=1) for the nav-bar-covered-by-content bug -
+        // shows the live numbers the fix below depends on, so this can be root-caused from
+        // a phone screenshot instead of guessed at again. Remove once actually diagnosed.
+        let debugEl = null;
+        if (location.search.indexOf('debug=1') !== -1) {
+            debugEl = document.createElement('div');
+            debugEl.style.cssText = 'position:fixed;top:0;left:0;z-index:99999;background:rgba(0,0,0,0.75);color:#0f0;font:10px monospace;padding:4px;white-space:pre;pointer-events:none;';
+            document.body.appendChild(debugEl);
         }
 
-        window.visualViewport.addEventListener('resize', fixBtmNavPosition);
-        window.visualViewport.addEventListener('scroll', fixBtmNavPosition);
+        function fixBtmNavPosition() {
+            const vv = window.visualViewport;
+            const offset = vv ? window.innerHeight - (vv.height + vv.offsetTop) : 0;
+            btmNav.style.transform = offset > 0 ? `translateY(-${offset}px)` : '';
+
+            if (debugEl) {
+                const navRect = btmNav.getBoundingClientRect();
+                debugEl.textContent =
+                    `innerHeight: ${window.innerHeight}\n` +
+                    `vv.height: ${vv ? Math.round(vv.height) : 'n/a'}\n` +
+                    `vv.offsetTop: ${vv ? Math.round(vv.offsetTop) : 'n/a'}\n` +
+                    `computed offset: ${Math.round(offset)}\n` +
+                    `scrollY: ${window.scrollY}\n` +
+                    `docScrollHeight: ${document.documentElement.scrollHeight}\n` +
+                    `navRect.top: ${Math.round(navRect.top)}\n` +
+                    `navRect.bottom: ${Math.round(navRect.bottom)}`;
+            }
+        }
+
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', fixBtmNavPosition);
+            window.visualViewport.addEventListener('scroll', fixBtmNavPosition);
+        }
+        window.addEventListener('scroll', fixBtmNavPosition, { passive: true });
         fixBtmNavPosition();
     })();
 
