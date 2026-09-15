@@ -22,7 +22,7 @@
 #include "ir_temp_sensor.h"
 
 
-uint8_t anneal_cycle_count_digits[] = {0, 0, 0, 0, 0};
+uint8_t anneal_cycle_count_digits[] = {0, 0, 0, 0};  // 4 digits (max 9999) - LCD entry only, REST/web have no such limit
 
 anneal_mode_config_t anneal_mode_config;
 
@@ -362,8 +362,7 @@ static void anneal_mode_cooldown(void) {
 
 uint8_t anneal_mode_menu(bool anneal_mode_skip_user_input) {
     if (!anneal_mode_skip_user_input) {
-        anneal_mode_config.eeprom_anneal_mode_data.cycle_count = anneal_cycle_count_digits[4] * 10000 +
-                                                                   anneal_cycle_count_digits[3] * 1000 +
+        anneal_mode_config.eeprom_anneal_mode_data.cycle_count = anneal_cycle_count_digits[3] * 1000 +
                                                                    anneal_cycle_count_digits[2] * 100 +
                                                                    anneal_cycle_count_digits[1] * 10 +
                                                                    anneal_cycle_count_digits[0];

@@ -310,7 +310,6 @@ muif_t muif_list[] = {
         MUIF_RO("TS", render_ir_temp_sensor_status),
 
         // input for a number between 0 to 9 //
-        MUIF_U8G2_U8_MIN_MAX("N4", &anneal_cycle_count_digits[4], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
         MUIF_U8G2_U8_MIN_MAX("N3", &anneal_cycle_count_digits[3], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
         MUIF_U8G2_U8_MIN_MAX("N2", &anneal_cycle_count_digits[2], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
         MUIF_U8G2_U8_MIN_MAX("N1", &anneal_cycle_count_digits[1], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
@@ -364,11 +363,10 @@ fds_t fds_data[] = {
     MUI_XY("HL", 0,13)
 
     MUI_STYLE(3)
-    MUI_XY("N4",20, 35)
     MUI_XY("N3",36, 35)
     MUI_XY("N2",52, 35)
-    MUI_XY("N1",76, 35)
-    MUI_XY("N0",92, 35)
+    MUI_XY("N1",68, 35)
+    MUI_XY("N0",84, 35)
 
     MUI_STYLE(0)
     MUI_XYAT("BN",115, 59, 13, "Next")
@@ -563,8 +561,11 @@ fds_t fds_data[] = {
     MUI_STYLE(0)
     MUI_LABEL(5, 25, "For bench testing only.")
     MUI_LABEL(5, 37, "Cutoff is automatic.")
-    MUI_XYAT("IH", 5, 49, 42, "Pulse Coil")
-    MUI_XYAT("BN", 64, 59, 30, " OK ")  // Jump to form 30
+    // Two buttons share one row (same pattern as forms 20/43's Back/Next) rather than
+    // stacking two bordered buttons close together vertically, which overflowed the
+    // 64px display height.
+    MUI_XYAT("IH", 14, 59, 42, "Pulse")
+    MUI_XYAT("BN", 115, 59, 30, " OK ")  // Jump to form 30
 
     // Calibrate dwell time
     MUI_FORM(43)

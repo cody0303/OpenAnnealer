@@ -23,10 +23,11 @@ typedef struct {
 extern "C" {
 #endif
 
-// Manual/commissioning mode: jog the feeder motor and toggle the case holder servo
-// with the encoder, useful for bench-testing the mechanism before running full
-// anneal cycles or calibrating dwell time. Replaces the old scale-oriented
-// cleanup_mode.
+// Manual/commissioning mode: a small on-device menu (Feed Jog / Case Holder / Pulse
+// Coil) for bench-testing the mechanism before running full anneal cycles or
+// calibrating dwell time - useful since the encoder only has rotate/press/RST to work
+// with, not enough gestures for three distinct actions on one screen. Replaces the
+// old scale-oriented cleanup_mode.
 uint8_t anneal_manual_mode_menu();
 
 bool http_rest_manual_mode_state(struct fs_file *file, int num_params, char *params[], char *values[]);

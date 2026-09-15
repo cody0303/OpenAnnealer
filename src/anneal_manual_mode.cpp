@@ -25,6 +25,29 @@ anneal_manual_mode_config_t anneal_manual_mode_config;
 
 #define FEED_SPEED_STEP_RPS 0.5f
 
+// The encoder only gives us three physical gestures (rotate CW/CCW, press) plus RST -
+// not enough to give feed-jog, holder-toggle, AND coil-pulse each their own gesture on
+// one screen without ambiguity. Split into a small menu (rotate to pick, press to
+// enter) plus one screen per action (RST always backs out to the menu), same
+// navigation idiom used by every other menu in this app - this is also what actually
+// makes the coil reachable from the LCD at all; it was REST-only before.
+typedef enum {
+    MANUAL_SCREEN_MENU = 0,
+    MANUAL_SCREEN_JOG,
+    MANUAL_SCREEN_HOLDER,
+    MANUAL_SCREEN_COIL,
+} manual_screen_t;
+
+#define MANUAL_MENU_ITEM_COUNT 3
+static const char * const manual_menu_items[MANUAL_MENU_ITEM_COUNT] = {
+    "Feed Jog",
+    "Case Holder",
+    "Pulse Coil",
+};
+
+static manual_screen_t manual_screen = MANUAL_SCREEN_MENU;
+static uint8_t manual_menu_cursor = 0;
+
 static char title_string[30];
 TaskHandle_t anneal_manual_render_task_handler = NULL;
 
@@ -50,23 +73,40 @@ void anneal_manual_render_task(void *p) {
 
         u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
 
-        // Draw feed speed
-        memset(buf, 0x0, sizeof(buf));
-        sprintf(buf, "Feed speed: %0.2f", anneal_manual_mode_config.feed_speed_rps);
-        u8g2_DrawStr(display_handler, 5, 25, buf);
+        switch (manual_screen) {
+            case MANUAL_SCREEN_MENU:
+                for (int idx = 0; idx < MANUAL_MENU_ITEM_COUNT; idx += 1) {
+                    memset(buf, 0x0, sizeof(buf));
+                    snprintf(buf, sizeof(buf), "%s%s", (idx == manual_menu_cursor) ? "> " : "  ", manual_menu_items[idx]);
+                    u8g2_DrawStr(display_handler, 5, 25 + idx * 12, buf);
+                }
+                u8g2_DrawStr(display_handler, 5, 61, "Press: select  RST: exit");
+                break;
 
-        // Draw holder state
-        memset(buf, 0x0, sizeof(buf));
-        sprintf(buf, "Holder: %s", gate_state_to_string(servo_gate.gate_state));
-        u8g2_DrawStr(display_handler, 5, 37, buf);
+            case MANUAL_SCREEN_JOG:
+                memset(buf, 0x0, sizeof(buf));
+                sprintf(buf, "Feed speed: %0.2f", anneal_manual_mode_config.feed_speed_rps);
+                u8g2_DrawStr(display_handler, 5, 25, buf);
+                u8g2_DrawStr(display_handler, 5, 61, "RST: back");
+                break;
 
-        // Draw induction heater state
-        memset(buf, 0x0, sizeof(buf));
-        sprintf(buf, "Coil: %s%s", induction_heater_is_active() ? "ON" : "off",
-                induction_heater.safety_cutoff_fault ? " (fault)" : "");
-        u8g2_DrawStr(display_handler, 5, 49, buf);
+            case MANUAL_SCREEN_HOLDER:
+                memset(buf, 0x0, sizeof(buf));
+                sprintf(buf, "Holder: %s", gate_state_to_string(servo_gate.gate_state));
+                u8g2_DrawStr(display_handler, 5, 25, buf);
+                u8g2_DrawStr(display_handler, 5, 49, "Press: hold/drop");
+                u8g2_DrawStr(display_handler, 5, 61, "RST: back");
+                break;
 
-        u8g2_DrawStr(display_handler, 5, 61, "Press: hold/drop");
+            case MANUAL_SCREEN_COIL:
+                memset(buf, 0x0, sizeof(buf));
+                sprintf(buf, "Coil: %s%s", induction_heater_is_active() ? "ON" : "off",
+                        induction_heater.safety_cutoff_fault ? " (fault)" : "");
+                u8g2_DrawStr(display_handler, 5, 25, buf);
+                u8g2_DrawStr(display_handler, 5, 49, "Press: pulse coil");
+                u8g2_DrawStr(display_handler, 5, 61, "RST: back");
+                break;
+        }
 
         u8g2_SendBuffer(display_handler);
 
@@ -107,6 +147,10 @@ uint8_t anneal_manual_mode_menu() {
     // Start with the holder clear (if enabled)
     anneal_manual_mode_set_holder(false);
 
+    // Always start at the top-level menu, not wherever a previous session left off.
+    manual_screen = MANUAL_SCREEN_MENU;
+    manual_menu_cursor = 0;
+
     // Update current status
     snprintf(title_string, sizeof(title_string), "Manual / Commissioning");
 
@@ -116,32 +160,83 @@ uint8_t anneal_manual_mode_menu() {
         ButtonEncoderEvent_t button_encoder_event;
         xQueueReceive(encoder_event_queue, &button_encoder_event, portMAX_DELAY);
 
-        switch (button_encoder_event) {
-            case BUTTON_RST_PRESSED:
-                anneal_manual_mode_config.feed_speed_rps = 0;
-                motor_set_speed(SELECT_FEEDER_MOTOR, 0);
-                quit = true;
+        switch (manual_screen) {
+            case MANUAL_SCREEN_MENU:
+                switch (button_encoder_event) {
+                    case BUTTON_RST_PRESSED:
+                        quit = true;
+                        break;
+                    case BUTTON_ENCODER_ROTATE_CW:
+                        manual_menu_cursor = (manual_menu_cursor + 1) % MANUAL_MENU_ITEM_COUNT;
+                        break;
+                    case BUTTON_ENCODER_ROTATE_CCW:
+                        manual_menu_cursor = (manual_menu_cursor + MANUAL_MENU_ITEM_COUNT - 1) % MANUAL_MENU_ITEM_COUNT;
+                        break;
+                    case BUTTON_ENCODER_PRESSED:
+                        // MANUAL_SCREEN_JOG/HOLDER/COIL are 1/2/3, in the same order
+                        // as manual_menu_items - see the enum's own comment.
+                        manual_screen = (manual_screen_t) (MANUAL_SCREEN_JOG + manual_menu_cursor);
+                        break;
+                    default:
+                        break;
+                }
+                break;
 
-                break;
-            case BUTTON_ENCODER_ROTATE_CW:
-                anneal_manual_mode_config.feed_speed_rps += FEED_SPEED_STEP_RPS;
-                motor_set_speed(SELECT_FEEDER_MOTOR, anneal_manual_mode_config.feed_speed_rps);
-                break;
-            case BUTTON_ENCODER_ROTATE_CCW:
-                anneal_manual_mode_config.feed_speed_rps -= FEED_SPEED_STEP_RPS;
-                motor_set_speed(SELECT_FEEDER_MOTOR, anneal_manual_mode_config.feed_speed_rps);
+            case MANUAL_SCREEN_JOG:
+                switch (button_encoder_event) {
+                    case BUTTON_RST_PRESSED:
+                        anneal_manual_mode_config.feed_speed_rps = 0;
+                        motor_set_speed(SELECT_FEEDER_MOTOR, 0);
+                        manual_screen = MANUAL_SCREEN_MENU;
+                        break;
+                    case BUTTON_ENCODER_ROTATE_CW:
+                        anneal_manual_mode_config.feed_speed_rps += FEED_SPEED_STEP_RPS;
+                        motor_set_speed(SELECT_FEEDER_MOTOR, anneal_manual_mode_config.feed_speed_rps);
+                        break;
+                    case BUTTON_ENCODER_ROTATE_CCW:
+                        anneal_manual_mode_config.feed_speed_rps -= FEED_SPEED_STEP_RPS;
+                        motor_set_speed(SELECT_FEEDER_MOTOR, anneal_manual_mode_config.feed_speed_rps);
+                        break;
+                    default:
+                        break;
+                }
                 break;
 
-            case BUTTON_ENCODER_PRESSED:
-                // Toggle the case holder servo between hold/drop - useful for
-                // checking the mechanism seats/clears cases correctly before
-                // running full cycles.
-                anneal_manual_mode_set_holder(!anneal_manual_mode_config.holder_held);
+            case MANUAL_SCREEN_HOLDER:
+                switch (button_encoder_event) {
+                    case BUTTON_RST_PRESSED:
+                        manual_screen = MANUAL_SCREEN_MENU;
+                        break;
+                    case BUTTON_ENCODER_PRESSED:
+                        // Toggle the case holder servo between hold/drop - useful for
+                        // checking the mechanism seats/clears cases correctly before
+                        // running full cycles.
+                        anneal_manual_mode_set_holder(!anneal_manual_mode_config.holder_held);
+                        break;
+                    default:
+                        break;
+                }
                 break;
-            default:
+
+            case MANUAL_SCREEN_COIL:
+                switch (button_encoder_event) {
+                    case BUTTON_RST_PRESSED:
+                        // Always leave the coil off when backing out of this screen -
+                        // same reasoning as forcing it off on full exit below.
+                        induction_heater_enable(false);
+                        manual_screen = MANUAL_SCREEN_MENU;
+                        break;
+                    case BUTTON_ENCODER_PRESSED:
+                        // Bounded entirely by the induction heater's own max_dwell_ms
+                        // safety timer, same as every other trigger path (REST h0,
+                        // the Settings > Induction Heater LCD form, the web UI).
+                        induction_heater_enable(true);
+                        break;
+                    default:
+                        break;
+                }
                 break;
         }
-
     }
 
     motor_enable(SELECT_FEEDER_MOTOR, false);
