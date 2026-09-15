@@ -8,17 +8,26 @@
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.7.3/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
     <style>
-        /* Exclude the pixels taken by the bottom nav bar.
-           Tried viewport-fit=cover + env(safe-area-inset-bottom) here to fix the nav
-           overlapping the iOS home indicator, but that produced a worse regression
-           (a large empty scrollable gap below the nav) without a real device to verify
-           against - reverted to a plain fixed value, just bumped up a bit from the
-           original 64px as a small, low-risk buffer rather than relying on env(). */
+        /* daisyUI's own .btm-nav is height:4rem with padding-bottom:env(safe-area-inset-bottom)
+           built in, and Tailwind's preflight sets box-sizing:border-box globally - so that
+           env() padding is absorbed inside the fixed 4rem box, not added on top of it. The
+           nav's actual on-screen footprint is always exactly 64px, safe-area or not, as long
+           as viewport-fit=cover (above) lets env() resolve to something other than 0. So page
+           content only needs to clear that fixed 64px - no env() math needed here, and no
+           override of .btm-nav itself (an earlier attempt did both, which double-counted the
+           safe-area inset and made the nav's box grow taller than intended). */
         .exclude-bottom-nav {
-            padding-bottom: 80px;
+            padding-bottom: 64px;
+        }
+
+        /* Chrome (not Safari) intermittently misplaces position:fixed elements while its
+           address bar collapses/expands during scroll - promoting the nav to its own GPU
+           compositing layer works around it. */
+        .btm-nav {
+            transform: translateZ(0);
         }
     </style>
 </head>
