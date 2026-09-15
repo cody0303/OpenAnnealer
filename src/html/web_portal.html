@@ -1737,6 +1737,34 @@
         input.click();
     }
 
+    // Work around a real, documented Chrome-for-Android bug (Chromium issue 41395555):
+    // position:fixed elements stay pinned to the stale layout-viewport bottom while the
+    // address bar animates during scroll, instead of the true visual-viewport bottom -
+    // leaving the fixed bottom nav rendered above where it should be, with page content
+    // visible/overlapping underneath it, until the animation settles (e.g. on scroll-up).
+    // Re-pin it explicitly via the Visual Viewport API on every change. Not needed on
+    // Safari (doesn't have this bug), but harmless there too since the computed offset is
+    // just 0 when the visual and layout viewports already match.
+    (function() {
+        if (!window.visualViewport) {
+            return;
+        }
+        const btmNav = document.querySelector('.btm-nav');
+        if (!btmNav) {
+            return;
+        }
+
+        function fixBtmNavPosition() {
+            const vv = window.visualViewport;
+            const offset = window.innerHeight - (vv.height + vv.offsetTop);
+            btmNav.style.transform = offset > 0 ? `translateY(-${offset}px)` : '';
+        }
+
+        window.visualViewport.addEventListener('resize', fixBtmNavPosition);
+        window.visualViewport.addEventListener('scroll', fixBtmNavPosition);
+        fixBtmNavPosition();
+    })();
+
     // Start the long polling process when the page loads
     if (document.readyState != "loading") {
         onNavButtonClicked('anneal');
