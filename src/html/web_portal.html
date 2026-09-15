@@ -45,14 +45,17 @@
 
             <!-- Time vs Temperature mode (Milestone 11, optional IR sensor). Only
                  changeable before starting a batch - locked out while a cycle is
-                 running, see pollAnnealModeStatus()'s _setStartStopButtonWidget call. -->
+                 running, see _setTempModeLocked() / _setStartStopButtonWidget(). -->
             <div class="grid grid-cols-2 items-center px-4 gap-2">
                 <div>
-                    <span class="label-text" id="tempModeLabel">Time Mode</span>
+                    <span class="label-text">Mode</span>
                 </div>
                 <div class="flex items-center justify-end gap-3">
                     <span id="tempModeReadoutValue" class="text-sm" style="display: none;">--.- C</span>
-                    <input type="checkbox" id="tempModeToggle" class="toggle toggle-primary" onchange="onTempModeToggleChanged(event)" />
+                    <div id="tempModeSegmented" class="inline-flex rounded-full bg-base-200 p-1 select-none">
+                        <span data-mode="time" onclick="onTempModeSegmentClicked('time')" class="rounded-full text-center text-sm font-semibold py-1 px-3 cursor-pointer transition-colors duration-150">Time</span>
+                        <span data-mode="temp" onclick="onTempModeSegmentClicked('temp')" class="rounded-full text-center text-sm font-semibold py-1 px-3 cursor-pointer transition-colors duration-150">Temp</span>
+                    </div>
                 </div>
             </div>
 
@@ -984,7 +987,7 @@
         // Time-vs-temperature mode is only changeable before starting a batch - the
         // server also silently ignores a change attempt mid-cycle (see c5 in
         // http_rest_anneal_mode_config()), this just keeps the UI honest about it.
-        document.getElementById("tempModeToggle").disabled = isRunning;
+        _setTempModeLocked(isRunning);
     }
 
     function onProfileNameClicked() {
@@ -1147,15 +1150,43 @@
         .catch(() => {});
     }
 
-    function _setTempModeLabel(isTemp) {
-        document.getElementById("tempModeLabel").innerText = isTemp ? "Temp Mode" : "Time Mode";
+    // Segmented Time/Temp switch styling - one side gets the filled/primary look, the
+    // other stays plain. Colours match the rest of the page's palette (bg-primary,
+    // same as the Start button and other primary controls).
+    function _setTempModeUI(isTemp) {
+        const timeSeg = document.querySelector('#tempModeSegmented [data-mode="time"]');
+        const tempSeg = document.querySelector('#tempModeSegmented [data-mode="temp"]');
+        const activeClasses = ["bg-primary", "text-primary-content"];
+        const inactiveClasses = ["text-base-content/60"];
+
+        timeSeg.classList.remove(...activeClasses, ...inactiveClasses);
+        tempSeg.classList.remove(...activeClasses, ...inactiveClasses);
+
+        const activeSeg = isTemp ? tempSeg : timeSeg;
+        const inactiveSeg = isTemp ? timeSeg : tempSeg;
+        activeSeg.classList.add(...activeClasses);
+        inactiveSeg.classList.add(...inactiveClasses);
     }
 
-    function onTempModeToggleChanged(event) {
-        const useTemp = event.target.checked;
-        _setTempModeLabel(useTemp);
-        // Server also refuses this mid-cycle (silently ignored) - the control is
-        // disabled client-side while running too, see _setStartStopButtonWidget().
+    // Only changeable before starting a batch - the server also silently ignores a
+    // change attempt mid-cycle (see c5 in http_rest_anneal_mode_config()); this is the
+    // client-side half of that, backed up by the dataset.locked check below in case a
+    // click somehow still lands while pointer-events is supposed to be blocking it.
+    function _setTempModeLocked(locked) {
+        const el = document.getElementById("tempModeSegmented");
+        el.classList.toggle("opacity-50", locked);
+        el.classList.toggle("pointer-events-none", locked);
+        el.dataset.locked = locked ? "true" : "false";
+    }
+
+    function onTempModeSegmentClicked(mode) {
+        const el = document.getElementById("tempModeSegmented");
+        if (el.dataset.locked === "true") {
+            return;
+        }
+
+        const useTemp = (mode === "temp");
+        _setTempModeUI(useTemp);
         fetch(`/rest/anneal_mode_config?c5=${encodeURIComponent(useTemp)}&ee=true`)
         .catch(error => {
             console.error("Error updating time/temperature mode");
@@ -1812,8 +1843,7 @@
             .then(response => response.json())
             .then(data => {
                 const useTemp = (String(data["c5"]) === "true");
-                document.getElementById("tempModeToggle").checked = useTemp;
-                _setTempModeLabel(useTemp);
+                _setTempModeUI(useTemp);
             })
             .catch(() => {});
         });
