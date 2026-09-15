@@ -8,24 +8,17 @@
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.7.3/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <style>
-        /* Exclude the pixels taken by the bottom nav bar, plus the iOS home-indicator
-           safe area when the nav bar itself grows to accommodate it (see .btm-nav
-           below) - without this, page content and the bottom nav overlap on iOS. */
+        /* Exclude the pixels taken by the bottom nav bar.
+           Tried viewport-fit=cover + env(safe-area-inset-bottom) here to fix the nav
+           overlapping the iOS home indicator, but that produced a worse regression
+           (a large empty scrollable gap below the nav) without a real device to verify
+           against - reverted to a plain fixed value, just bumped up a bit from the
+           original 64px as a small, low-risk buffer rather than relying on env(). */
         .exclude-bottom-nav {
-            padding-bottom: calc(64px + env(safe-area-inset-bottom));
-        }
-
-        /* The bottom nav is fixed to the true bottom of the viewport, which on iOS
-           (with viewport-fit=cover, see the meta tag above) extends under the home
-           indicator - grow the bar into that space with padding rather than letting
-           the indicator bar overlap/clip the nav labels. */
-        .btm-nav {
-            height: auto;
-            min-height: 4rem;
-            padding-bottom: env(safe-area-inset-bottom);
+            padding-bottom: 80px;
         }
     </style>
 </head>
