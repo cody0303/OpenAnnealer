@@ -727,7 +727,7 @@
 
                             <div id="otaUploadSection" class="grid grid-cols-1 gap-2" style="display: none;">
                                 <span class="label-text">Upload New Firmware (.uf2/.bin, TBYB + versioned build)</span>
-                                <input type="file" id="otaFileInput" class="file-input file-input-bordered w-full">
+                                <input type="file" id="otaFileInput" accept=".uf2,.bin" class="file-input file-input-bordered w-full">
                                 <button type="button" class="btn btn-primary" id="otaUploadBtn" onclick="otaUploadFirmware()">Upload & Update</button>
 
                                 <progress id="otaUploadProgress" class="progress progress-primary" value="0" max="100" style="display: none;"></progress>
