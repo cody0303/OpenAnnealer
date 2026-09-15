@@ -20,7 +20,7 @@
 #endif
 
 // Overwrite the host name
-#define CYW43_HOST_NAME "opentrickler"
+#define CYW43_HOST_NAME "openannealer"
 #define LED_INTERFACE_MINIMUM_POLL_PERIOD_MS    20
 
 // The hostname is used by STA mode to advertise mDNS. The value is also used for AP mode as the SSID
@@ -174,7 +174,7 @@ bool wireless_init() {
     // Generate the hostname
     char id[4];
     eeprom_get_board_id(id, sizeof(id));
-    snprintf(host_name, sizeof(host_name), "opentrickler-%s", id);
+    snprintf(host_name, sizeof(host_name), "openannealer-%s", id);
 
 
     return is_ok;
@@ -363,14 +363,14 @@ void wireless_task(void *p) {
         // If the STA mode is successfully initialized, we will also start the mdns service
         mdns_resp_init();
 
-        // The opentrickler can be accessed via
+        // The device can be accessed via hostname.local (see host_name generation above)
         mdns_resp_add_netif(&cyw43_state.netif[CYW43_ITF_STA], host_name);
 
         // Add service HTTP, allowing user to access the web interface with hostname.local format
         mdns_resp_add_service(&cyw43_state.netif[CYW43_ITF_STA], "rest_httpd", "_http", DNSSD_PROTO_TCP, 80, srv_txt, NULL);
 
-        // Add secondary service to allow client to discover with service _opentrickler._tcp.local
-        mdns_resp_add_service(&cyw43_state.netif[CYW43_ITF_STA], "app_httpd", "_opentrickler", DNSSD_PROTO_TCP, 80, srv_txt, NULL);
+        // Add secondary service to allow client to discover with service _openannealer._tcp.local
+        mdns_resp_add_service(&cyw43_state.netif[CYW43_ITF_STA], "app_httpd", "_openannealer", DNSSD_PROTO_TCP, 80, srv_txt, NULL);
         cyw43_arch_lwip_end();
 #if OTA_DEBUG_SERIAL
         printf("WIFI: mdns started\n");
