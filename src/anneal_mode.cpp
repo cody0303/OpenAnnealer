@@ -71,6 +71,11 @@ typedef enum {
                                                             // case's heat fell back to time-based dwell
     ANNEAL_MODE_EVENT_TEMP_TARGET_NOT_REACHED = (1 << 3),  // Coil safety cutoff fired in temperature
                                                             // mode - target_temp_c was never reached
+    ANNEAL_MODE_EVENT_TEMP_SENSOR_NOT_PRESENT = (1 << 4),  // Temperature mode is on and the profile has
+                                                            // a target set, but no sensor is connected at
+                                                            // all - distinct from TEMP_SENSOR_FAULT (which
+                                                            // is a sensor that was working and lost health
+                                                            // mid-heat); this case ran time-based instead
 } AnnealModeEventBit_t;
 
 
@@ -230,6 +235,16 @@ static void anneal_mode_heat(void) {
     bool use_temp_target = anneal_mode_config.eeprom_anneal_mode_data.use_temperature_mode &&
         ir_temp_sensor_is_present() && profile->target_temp_c > 0.0f;
     const bool temp_mode_requested = use_temp_target;  // Immutable - see the safety-limit branch below
+
+    // Temperature mode is selected and the profile has a real target, but there's no
+    // sensor to read - this case is silently about to run time-based instead. That's
+    // fine when target_temp_c is deliberately left at 0 (pure time-based by design),
+    // but a sensor that's simply unplugged/absent shouldn't fall back without any
+    // visible indication - flag it every time it happens, same as the mid-heat fault.
+    if (anneal_mode_config.eeprom_anneal_mode_data.use_temperature_mode &&
+        profile->target_temp_c > 0.0f && !ir_temp_sensor_is_present()) {
+        anneal_mode_config.anneal_mode_event |= ANNEAL_MODE_EVENT_TEMP_SENSOR_NOT_PRESENT;
+    }
 
     // dwell_time_ms is a *time-mode* calibrated value (what Milestone 6's paint-based
     // calibration measures) - reusing it as a hard cap in temperature mode too would
