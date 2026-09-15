@@ -59,11 +59,18 @@ set(PICOTOOL_EXECUTABLE "picotool" CACHE STRING "picotool executable used to bui
 # --match also makes `git describe` itself ignore those old tags when picking the
 # nearest one, not just the regex below.
 #
-# The version scheme is intentionally coarse - the picobin version item only stores
-# major/minor, no patch/build number - so only builds cut from a bumped tag actually
-# count as a newer OTA version. Untagged/dirty dev builds keep reusing the same tag's
-# major.minor, which is fine since OTA is for tagged releases, not the physical-reflash
-# dev-iteration loop used day to day.
+# The picobin version item only stores major/minor, no separate patch/build number -
+# originally this meant only builds cut from a manually-bumped tag counted as a newer
+# OTA version, on the assumption OTA was for tagged releases, not routine dev-iteration.
+# That assumption didn't hold: OTA became the routine day-to-day reflash path almost
+# immediately, and 24 real commits landed across many successful OTA updates before
+# anyone noticed the tag itself was never bumped once - silently relying on the
+# bootrom's equal-version handling rather than genuine TBYB tentative-boot protection
+# the whole time. Rather than depend on remembering to bump a tag before every flash,
+# fold `git describe`'s own commit-count-since-tag into minor, so every single commit
+# is automatically a strictly newer OTA version with zero manual steps. The tag itself
+# now only needs bumping for a deliberate, meaningful major/minor milestone (e.g. a
+# real release), not for routine version-monotonicity.
 execute_process(
     COMMAND git describe --tags --long --always --match "annealer-v*"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
@@ -71,15 +78,15 @@ execute_process(
     OUTPUT_STRIP_TRAILING_WHITESPACE
     ERROR_QUIET
 )
-if(GIT_DESCRIBE_OUTPUT MATCHES "^annealer-v([0-9]+)\\.([0-9]+)-")
+if(GIT_DESCRIBE_OUTPUT MATCHES "^annealer-v([0-9]+)\\.([0-9]+)-([0-9]+)-g")
     set(APP_FW_VERSION_MAJOR ${CMAKE_MATCH_1})
-    set(APP_FW_VERSION_MINOR ${CMAKE_MATCH_2})
+    math(EXPR APP_FW_VERSION_MINOR "${CMAKE_MATCH_2} + ${CMAKE_MATCH_3}")
 else()
-    message(WARNING "Could not parse an annealer-vX.Y git tag from '${GIT_DESCRIBE_OUTPUT}' - falling back to version 0.0 for the OTA image version. Untagged builds will not be treated as newer than a previous OTA update.")
+    message(WARNING "Could not parse an annealer-vX.Y git tag from '${GIT_DESCRIBE_OUTPUT}' - falling back to version 0.0 for the OTA image version. This build will not be treated as newer than a previous OTA update.")
     set(APP_FW_VERSION_MAJOR 0)
     set(APP_FW_VERSION_MINOR 0)
 endif()
-message("OTA image version (from git tag): ${APP_FW_VERSION_MAJOR}.${APP_FW_VERSION_MINOR}")
+message("OTA image version (from git tag + commit count): ${APP_FW_VERSION_MAJOR}.${APP_FW_VERSION_MINOR}")
 
 
 # Application
