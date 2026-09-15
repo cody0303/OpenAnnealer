@@ -211,14 +211,22 @@ static void anneal_mode_heat(void) {
     induction_heater_enable(true);
 
     profile_t * profile = profile_get_selected();
+    bool use_temp_target = ir_temp_sensor_is_enabled() && profile->target_temp_c > 0.0f;
+
+    // dwell_time_ms is a *time-mode* calibrated value (what Milestone 6's paint-based
+    // calibration measures) - reusing it as a hard cap in temperature mode too would
+    // arbitrarily cut a temp-mode cycle short at a duration that has nothing to do with
+    // reaching the target. In temperature mode, the real ceiling is the induction
+    // heater's own hardware max_dwell_ms safety timer instead (enforced independently
+    // by induction_heater.c - this loop just notices via induction_heater_is_active()
+    // going false below, same as the existing fault path). Confirmed on the bench:
+    // with temp mode on and no case actually reaching target, this used to stop at
+    // dwell_time_ms instead of running to the real safety limit.
+    bool has_time_limit = !use_temp_target;
     TickType_t stop_tick = xTaskGetTickCount() + pdMS_TO_TICKS(profile->dwell_time_ms);
     bool aborted = false;
 
-    // Milestone 11: dwell_time_ms (stop_tick above) remains a hard safety-cap timeout
-    // regardless - target-temp mode can only END heating EARLY, never extend past it.
-    bool use_temp_target = ir_temp_sensor_is_enabled() && profile->target_temp_c > 0.0f;
-
-    while (xTaskGetTickCount() < stop_tick) {
+    while (!has_time_limit || xTaskGetTickCount() < stop_tick) {
         ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
         if (button_encoder_event == BUTTON_RST_PRESSED) {
             aborted = true;
@@ -243,9 +251,14 @@ static void anneal_mode_heat(void) {
             else {
                 // Sensor faulted mid-heat (or is still in its brief initializing
                 // window) - don't guess off a reading we can't currently trust. Flag
-                // it and fall back to the fixed dwell_time_ms for this case.
+                // it and fall back to the fixed dwell_time_ms for this case, measured
+                // from when heating started (stop_tick was already computed above).
+                // If dwell_time_ms has already elapsed by this point (temp mode was
+                // running unbounded until now), this ends the heat immediately rather
+                // than let a now-untrusted cycle continue any further.
                 anneal_mode_config.anneal_mode_event |= ANNEAL_MODE_EVENT_TEMP_SENSOR_FAULT;
                 use_temp_target = false;
+                has_time_limit = true;
             }
         }
 

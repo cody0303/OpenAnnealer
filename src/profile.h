@@ -28,8 +28,12 @@ typedef struct
     float feed_speed_rps;
     uint32_t pre_heat_settle_ms; // Let the holder finish moving before enabling the coil
     uint32_t dwell_time_ms;      // Heat time; must be <= the induction heater's max_dwell_ms.
-                                 // Acts as a hard safety-cap timeout even when target_temp_c
-                                 // is in use (Milestone 11) - never removed in temperature mode.
+                                 // This is the operative heat duration in pure time-based
+                                 // mode. When target_temp_c (below) is in effect instead, this
+                                 // is NOT reused as a cap - it's a time-mode-calibrated value
+                                 // with no bearing on how long reaching a temperature target
+                                 // should take. The real ceiling in temperature mode is the
+                                 // induction heater's own hardware max_dwell_ms safety timer.
     uint32_t post_heat_delay_ms; // Let the coil fully de-energize before dropping
     float target_temp_c;        // Optional target object temperature (Milestone 11). Only
                                  // consulted when the IR temp sensor's global toggle is on;
