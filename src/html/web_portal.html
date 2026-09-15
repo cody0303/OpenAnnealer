@@ -1097,6 +1097,12 @@
                 tempTargetNotReachedAlert.style.display = "flex";
             }
         })
+        // Sequenced after the fetch above rather than fired in parallel with it - this
+        // embedded HTTP server has limited resources, and firing two requests at once
+        // on every single poll tick meant an extra request was reliably in flight at
+        // the exact moment of a page transition (e.g. opening Settings), competing
+        // with that page's own populate fetch for the same connection resources.
+        .then(() => _pollTempSensorStatus())
         .catch(error => {
             console.error("Error reading anneal mode status");
         })
@@ -1105,8 +1111,6 @@
             clearTimeout(pollSetTimeoutId);
             pollSetTimeoutId = setTimeout(pollAnnealModeStatus, 500);
         })
-
-        _pollTempSensorStatus();
     }
 
     // Piggybacks on the same poll cadence as pollAnnealModeStatus() rather than
@@ -1376,6 +1380,11 @@
                         element.value = String(data[key]);
                     }
                 }
+            })
+            .catch(error => {
+                // Previously silent on failure - a dropped/malformed response left
+                // the form just sitting there unpopulated with no trace of why.
+                console.error(`Error populating ${sectionId}: ${error}`);
             })
         }
 
